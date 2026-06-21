@@ -1,0 +1,38 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .database import init_db
+from .routes import character_router
+
+app = FastAPI(
+    title="Axiforge Workshop",
+    description="Character creation and management system",
+    version="0.1.0",
+)
+
+# CORS 配置
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# 注册路由
+app.include_router(character_router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
+
+
+@app.get("/")
+async def root():
+    return {"name": "Axiforge Workshop API", "version": "0.1.0", "status": "running"}
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "healthy"}

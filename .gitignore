@@ -1,0 +1,121 @@
+# ================================
+# Dependencies
+# ================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+*.whl
+
+# Node
+node_modules/
+.pnpm-store/
+
+# ================================
+# Virtual Environment
+# ================================
+.venv/
+venv/
+env/
+*.virtualenv
+
+# ================================
+# Environment & Config
+# ================================
+.env
+.env.local
+.env.*.local
+*.env
+
+# ================================
+# IDE & Editor
+# ================================
+
+# VSCode
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains
+.idea/
+*.iml
+
+# Cursor
+.cursor/
+
+# Sublime
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ================================
+# OS
+# ================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# ================================
+# Build & Output
+# ================================
+
+# Python
+*.log
+logs/
+
+# Frontend
+frontend/dist/
+frontend/build/
+
+# ================================
+# Database
+# ================================
+*.db
+*.sqlite
+*.sqlite3
+db.json
+
+# ================================
+# Testing
+# ================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+coverage.xml
+
+# ================================
+# Tools
+# ================================
+
+# uv
+uv.lock
+
+# pnpm
+pnpm-lock.yaml
+
+# Docker
+docker-compose.override.yml
+
+# ================================
+# Misc
+# ================================
+*.tmp
+*.temp
+.cache/
+tmp/
+temp/
