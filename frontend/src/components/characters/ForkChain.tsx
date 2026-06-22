@@ -8,61 +8,28 @@ interface ForkChainProps {
 export default function ForkChain({ characterId }: ForkChainProps) {
   const { data: chain, isLoading } = useForkChain(characterId);
 
-  if (isLoading) return <div className="text-sm text-gray-400">加载中...</div>;
+  if (isLoading) return null;
   if (!chain || chain.total_forks === 0) return null;
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <svg
-          className="w-4 h-4 text-gray-400"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-          />
-        </svg>
-        <span className="text-sm font-medium text-gray-700">
-          Fork 链 ({chain.total_forks} 个分支)
-        </span>
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
+      <div className="flex items-center gap-2 mb-2 text-xs text-gray-400">
+        <span>🔀 Fork 链</span>
+        <span>({chain.total_forks} 个分支)</span>
       </div>
-
       <div className="flex items-center gap-2 flex-wrap">
         {chain.chain.map((item, index) => (
           <div key={item.id} className="flex items-center gap-2">
-            {index > 0 && (
-              <svg
-                className="w-4 h-4 text-gray-300"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            )}
+            {index > 0 && <span className="text-gray-300">→</span>}
             <Link
               to={`/characters/${item.id}`}
-              className={`
-                px-3 py-1 rounded-full text-sm transition-colors
-                ${
-                  item.is_current
-                    ? "bg-blue-100 text-blue-700 font-medium"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                }
-              `}
+              className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
+                item.is_current
+                  ? "bg-blue-100 text-blue-700 font-medium"
+                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+              }`}
             >
               {item.name}
-              {item.is_current && " (当前)"}
             </Link>
           </div>
         ))}

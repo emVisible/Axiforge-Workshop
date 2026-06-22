@@ -1,41 +1,27 @@
 import { create } from 'zustand';
 import type { CharacterData } from '@/types/character';
+import { draftManager } from '@/lib/draftManager';
 
 export const emptyCharacterData: CharacterData = {
-  core: {
-    name: '',
-    archetype: '',
-    voice: '',
-    core_memory: '',
-    desire: '',
-    fear: '',
-  },
-  layers: {
-    surface: '',
-    intimate: '',
-    under_stress: '',
-  },
-  dynamics: {
-    emotional_triggers: {
-      喜悦: [],
-      愤怒: [],
-      悲伤: [],
-    },
-    growth_arc: '',
-    relationship_patterns: '',
-  },
+  contour: { name: '', appearance: '', age_era: '', identity: '', first_impression: '' },
+  demeanor: { speech_style: '', habits: '', typical_reaction: '', expressiveness: '' },
+  psyche: { desire: '', fear: '', conflict: '', self_perception: '' },
+  anchor: { essence: '', theme: '', core_belief: '' },
+  trace: { background: '', key_events: [], turning_point: '' },
+  bond: { attitude_to_others: '', intimate_pattern: '', hostile_pattern: '', group_role: '' },
 };
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface EditorState {
   draft: CharacterData | null;
   isDirty: boolean;
-  lastSaved: Date | null;
+  lastSavedAt: number | null;
   currentCharacterId: string | null;
+  draftId: string | null;
 
   setDraft: (draft: CharacterData, characterId?: string) => void;
   updateField: (path: string, value: any) => void;
-  addEmotionTrigger: (emotion: '喜悦' | '愤怒' | '悲伤', trigger: string) => void;
-  removeEmotionTrigger: (emotion: '喜悦' | '愤怒' | '悲伤', index: number) => void;
   markClean: () => void;
   reset: () => void;
 }
@@ -44,11 +30,10 @@ function setNestedValue(obj: any, path: string, value: any): any {
   const keys = path.split('.');
   const newObj = JSON.parse(JSON.stringify(obj));
   let current = newObj;
-
   for (let i = 0; i < keys.length - 1; i++) {
+    if (!current[keys[i]]) current[keys[i]] = {};
     current = current[keys[i]];
   }
-
   current[keys[keys.length - 1]] = value;
   return newObj;
 }
@@ -56,40 +41,35 @@ function setNestedValue(obj: any, path: string, value: any): any {
 export const useEditorStore = create<EditorState>((set, get) => ({
   draft: null,
   isDirty: false,
-  lastSaved: null,
+  lastSavedAt: null,
   currentCharacterId: null,
+  draftId: null,
 
-  setDraft: (draft, characterId) =>
-    set({ draft, isDirty: false, lastSaved: null, currentCharacterId: characterId }),
+  setDraft: (draft, characterId) => {
+    const draftId = characterId ? `edit_${characterId}` : 'create_new';
+    set({ draft, isDirty: false, currentCharacterId: characterId, draftId, lastSavedAt: null });
+  },
 
   updateField: (path, value) => {
-    const currentDraft = get().draft;
-    if (!currentDraft) return;
-
-    const newDraft = setNestedValue(currentDraft, path, value);
+    const { draft, draftId, currentCharacterId } = get();
+    if (!draft || !draftId) return;
+    const newDraft = setNestedValue(draft, path, value);
     set({ draft: newDraft, isDirty: true });
+
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      const name = newDraft?.contour?.name || newDraft?.anchor?.essence || '';
+      draftManager.save(draftId, newDraft, { characterId: currentCharacterId || undefined, name });
+      set({ lastSavedAt: Date.now() });
+    }, 800);
   },
 
-  addEmotionTrigger: (emotion, trigger) => {
-    const currentDraft = get().draft;
-    if (!currentDraft) return;
+  markClean: () => set({ isDirty: false }),
 
-    const newDraft = JSON.parse(JSON.stringify(currentDraft));
-    newDraft.dynamics.emotional_triggers[emotion].push(trigger);
-    set({ draft: newDraft, isDirty: true });
+  reset: () => {
+    const { draftId } = get();
+    if (draftId) draftManager.remove(draftId);
+    if (saveTimer) clearTimeout(saveTimer);
+    set({ draft: null, isDirty: false, lastSavedAt: null, currentCharacterId: null, draftId: null });
   },
-
-  removeEmotionTrigger: (emotion, index) => {
-    const currentDraft = get().draft;
-    if (!currentDraft) return;
-
-    const newDraft = JSON.parse(JSON.stringify(currentDraft));
-    newDraft.dynamics.emotional_triggers[emotion].splice(index, 1);
-    set({ draft: newDraft, isDirty: true });
-  },
-
-  markClean: () => set({ isDirty: false, lastSaved: new Date() }),
-
-  reset: () =>
-    set({ draft: null, isDirty: false, lastSaved: null, currentCharacterId: null }),
 }));

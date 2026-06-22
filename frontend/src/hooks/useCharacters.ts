@@ -1,21 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { characterApi } from '@/api/characters';
-import type { Character, CharacterCreate, CharacterUpdate, ForkChain, ForkRequest } from '@/types/character';
+import type { Character, CharacterCreate, CharacterUpdate, ForkRequest } from '@/types/character';
 
 export const CHARACTER_KEYS = {
   all: ['characters'] as const,
-  lists: () => [...CHARACTER_KEYS.all, 'list'] as const,
-  list: (filters: Record<string, any>) => [...CHARACTER_KEYS.lists(), filters] as const,
-  details: () => [...CHARACTER_KEYS.all, 'detail'] as const,
-  detail: (id: string) => [...CHARACTER_KEYS.details(), id] as const,
-  public: (skip: number, limit: number) => [...CHARACTER_KEYS.all, 'public', { skip, limit }] as const,
-  user: (authorId: string) => [...CHARACTER_KEYS.all, 'user', authorId] as const,
+  public: (params?: Record<string, any>) => ['characters', 'public', params] as const,
+  detail: (id: string) => ['characters', 'detail', id] as const,
+  user: (authorId: string) => ['characters', 'user', authorId] as const,
+  forkChain: (id: string) => ['characters', 'forkChain', id] as const,
 };
 
-export const usePublicCharacters = (skip = 0, limit = 20) => {
+export const usePublicCharacters = (params?: {
+  skip?: number; limit?: number; search?: string; tags?: string; sort?: string;
+}) => {
   return useQuery({
-    queryKey: CHARACTER_KEYS.public(skip, limit),
-    queryFn: () => characterApi.listPublic(skip, limit),
+    queryKey: CHARACTER_KEYS.public(params),
+    queryFn: () => characterApi.listPublic(params),
   });
 };
 
@@ -37,7 +37,6 @@ export const useCharacter = (id: string) => {
 
 export const useCreateCharacter = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (data: CharacterCreate) => characterApi.create(data),
     onSuccess: () => {
@@ -48,20 +47,18 @@ export const useCreateCharacter = () => {
 
 export const useUpdateCharacter = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: CharacterUpdate }) =>
       characterApi.update(id, data),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: CHARACTER_KEYS.detail(data.id) });
-      queryClient.invalidateQueries({ queryKey: CHARACTER_KEYS.lists() });
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: CHARACTER_KEYS.detail(variables.id) });
+      queryClient.invalidateQueries({ queryKey: ['characters', 'public'] });
     },
   });
 };
 
 export const useDeleteCharacter = () => {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: (id: string) => characterApi.delete(id),
     onSuccess: () => {
@@ -70,12 +67,10 @@ export const useDeleteCharacter = () => {
   });
 };
 
-
 export const useForkCharacter = () => {
   const queryClient = useQueryClient();
-
-  return useMutation<Character, Error, { id: string; forkRequest?: ForkRequest }>({
-    mutationFn: ({ id, forkRequest }: { id: string; forkRequest?: import('@/types/character').ForkRequest }) =>
+  return useMutation({
+    mutationFn: ({ id, forkRequest }: { id: string; forkRequest?: ForkRequest }) =>
       characterApi.fork(id, forkRequest),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CHARACTER_KEYS.all });
@@ -84,8 +79,8 @@ export const useForkCharacter = () => {
 };
 
 export const useForkChain = (id: string) => {
-  return useQuery<ForkChain>({
-    queryKey: [...CHARACTER_KEYS.detail(id), 'fork-chain'],
+  return useQuery({
+    queryKey: CHARACTER_KEYS.forkChain(id),
     queryFn: () => characterApi.getForkChain(id),
     enabled: !!id,
   });

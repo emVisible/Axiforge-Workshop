@@ -2,53 +2,70 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
+from .tag import TagResponse
 
 
-class EmotionalTriggers(BaseModel):
-    喜悦: List[str] = Field(default_factory=list, description="触发喜悦的事件")
-    愤怒: List[str] = Field(default_factory=list, description="触发愤怒的事件")
-    悲伤: List[str] = Field(default_factory=list, description="触发悲伤的事件")
+# 六层结构保持不变
+class Contour(BaseModel):
+    name: str = Field("")
+    appearance: Optional[str] = Field(None)
+    age_era: Optional[str] = Field(None)
+    identity: Optional[str] = Field(None)
+    first_impression: Optional[str] = Field(None)
 
 
-class CharacterCore(BaseModel):
-    name: str = Field(..., description="角色名")
-    archetype: str = Field(..., description="一句话本质概括")
-    voice: str = Field(..., description="标志性口头禅/说话风格")
-    core_memory: str = Field(..., description="定义人格的关键记忆")
-    desire: str = Field(..., description="深层欲望")
-    fear: str = Field(..., description="核心恐惧")
+class Demeanor(BaseModel):
+    speech_style: Optional[str] = Field(None)
+    habits: Optional[str] = Field(None)
+    typical_reaction: Optional[str] = Field(None)
+    expressiveness: Optional[str] = Field(None)
 
 
-class CharacterLayers(BaseModel):
-    surface: str = Field(..., description="初次见面时的表现")
-    intimate: str = Field(..., description="熟悉后的真实自我")
-    under_stress: str = Field(..., description="压力下的崩坏/爆发模式")
+class Psyche(BaseModel):
+    desire: Optional[str] = Field(None)
+    fear: Optional[str] = Field(None)
+    conflict: Optional[str] = Field(None)
+    self_perception: Optional[str] = Field(None)
 
 
-class CharacterDynamics(BaseModel):
-    emotional_triggers: EmotionalTriggers = Field(default_factory=EmotionalTriggers)
-    growth_arc: str = Field("", description="角色成长方向")
-    relationship_patterns: str = Field("", description="人际模式")
+class Anchor(BaseModel):
+    essence: str = Field("")
+    theme: Optional[str] = Field(None)
+    core_belief: Optional[str] = Field(None)
+
+
+class Trace(BaseModel):
+    background: Optional[str] = Field(None)
+    key_events: List[str] = Field(default_factory=list)
+    turning_point: Optional[str] = Field(None)
+
+
+class Bond(BaseModel):
+    attitude_to_others: Optional[str] = Field(None)
+    intimate_pattern: Optional[str] = Field(None)
+    hostile_pattern: Optional[str] = Field(None)
+    group_role: Optional[str] = Field(None)
 
 
 class CharacterData(BaseModel):
-    core: CharacterCore
-    layers: CharacterLayers
-    dynamics: CharacterDynamics = Field(default_factory=CharacterDynamics)
+    contour: Contour = Field(default_factory=Contour)
+    demeanor: Demeanor = Field(default_factory=Demeanor)
+    psyche: Psyche = Field(default_factory=Psyche)
+    anchor: Anchor = Field(default_factory=Anchor)
+    trace: Trace = Field(default_factory=Trace)
+    bond: Bond = Field(default_factory=Bond)
 
 
 class CharacterCreate(BaseModel):
-    name: str
     character_data: CharacterData
     is_public: bool = False
-    tags: List[str] = Field(default_factory=list)
+    tag_names: List[str] = Field(default_factory=list)
 
 
 class CharacterUpdate(BaseModel):
-    name: Optional[str] = None
     character_data: Optional[CharacterData] = None
     is_public: Optional[bool] = None
-    tags: Optional[List[str]] = None
+    tag_names: Optional[List[str]] = None
 
 
 class CharacterResponse(BaseModel):
@@ -57,8 +74,8 @@ class CharacterResponse(BaseModel):
     author_id: str
     character_data: Dict[str, Any]
     is_public: bool
-    tags: List[str]
-    fork_from: Optional[UUID]
+    tags: List[TagResponse] = []
+    fork_from: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
 
@@ -66,16 +83,18 @@ class CharacterResponse(BaseModel):
         from_attributes = True
 
 
-class CharacterPreview(BaseModel):
-    character_id: UUID
-    message: str = Field(..., description="发送给角色的消息")
-
-
 class CharacterForkRequest(BaseModel):
-    new_name: Optional[str] = Field(None, description="Fork后的新名称")
-    author_id: str = Field("anonymous", description="新作者ID")
+    new_name: Optional[str] = Field(None)
+    author_id: str = Field("anonymous")
 
 
-class CharacterForkResponse(BaseModel):
-    original: CharacterResponse
-    forked: CharacterResponse
+class CharacterPreviewRequest(BaseModel):
+    character_id: UUID
+    message: str
+
+
+class CharacterSearchResponse(BaseModel):
+    items: List[CharacterResponse]
+    total: int
+    skip: int
+    limit: int

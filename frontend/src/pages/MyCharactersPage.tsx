@@ -1,9 +1,13 @@
 import { Link } from "react-router";
 import { useUserCharacters } from "@/hooks/useCharacters";
 import { CharacterGrid } from "@/components/characters";
-import { LoadingSpinner, ErrorDisplay, EmptyState } from "@/components/ui";
+import {
+  LoadingSpinner,
+  ErrorDisplay,
+  EmptyState,
+  Button,
+} from "@/components/ui";
 
-// 临时使用匿名用户ID，后期集成认证系统
 const TEMP_USER_ID = "anonymous";
 
 export default function MyCharactersPage() {
@@ -14,29 +18,24 @@ export default function MyCharactersPage() {
   } = useUserCharacters(TEMP_USER_ID);
 
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
+    <div className="animate-fadeIn">
+      <div className="flex items-end justify-between mb-8">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">我的角色</h1>
-          <p className="mt-2 text-gray-600">管理和编辑你创建的角色</p>
+          <h1 className="text-2xl font-bold text-gray-900">我的角色</h1>
+          <p className="text-sm text-gray-400 mt-1">管理和编辑你创建的角色</p>
         </div>
-        <Link
-          to="/create"
-          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-        >
+        <Button as="link" to="/create" size="sm">
           创建新角色
-        </Link>
+        </Button>
       </div>
 
       {isLoading && <LoadingSpinner />}
-
       {error && (
         <ErrorDisplay
           message="加载角色失败"
           onRetry={() => window.location.reload()}
         />
       )}
-
       {characters && characters.length === 0 && (
         <EmptyState
           title="你还没有创建角色"
@@ -44,7 +43,6 @@ export default function MyCharactersPage() {
           action={{ label: "创建角色", to: "/create" }}
         />
       )}
-
       {characters && characters.length > 0 && (
         <CharacterGrid characters={characters} />
       )}

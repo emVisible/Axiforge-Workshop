@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -8,8 +8,9 @@ from ..database import get_db
 from ..schemas.character import (
     CharacterCreate,
     CharacterForkRequest,
-    CharacterPreview,
+    CharacterPreviewRequest,
     CharacterResponse,
+    CharacterSearchResponse,
     CharacterUpdate,
 )
 from ..services.character import CharacterService
@@ -25,14 +26,23 @@ async def create_character(
     return await service.create_character(character)
 
 
-@router.get("/public", response_model=List[CharacterResponse])
+@router.get("/public", response_model=CharacterSearchResponse)
 async def list_public_characters(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    tags: Optional[str] = Query(None, description="逗号分隔的标签名"),
+    sort: str = Query("recent", pattern="^(recent|popular)$"),
     db: AsyncSession = Depends(get_db),
 ):
     service = CharacterService(db)
-    return await service.get_public_characters(skip=skip, limit=limit)
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+    characters, total = await service.search_public_characters(
+        skip=skip, limit=limit, search=search, tag_names=tag_list, sort_by=sort
+    )
+    return CharacterSearchResponse(
+        items=characters, total=total, skip=skip, limit=limit
+    )
 
 
 @router.get("/user/{author_id}", response_model=List[CharacterResponse])
@@ -52,12 +62,10 @@ async def get_character(character_id: UUID, db: AsyncSession = Depends(get_db)):
 
 @router.put("/{character_id}", response_model=CharacterResponse)
 async def update_character(
-    character_id: UUID,
-    character_update: CharacterUpdate,
-    db: AsyncSession = Depends(get_db),
+    character_id: UUID, update: CharacterUpdate, db: AsyncSession = Depends(get_db)
 ):
     service = CharacterService(db)
-    character = await service.update_character(character_id, character_update)
+    character = await service.update_character(character_id, update)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
     return character
@@ -77,7 +85,6 @@ async def fork_character(
     fork_request: CharacterForkRequest = CharacterForkRequest(),
     db: AsyncSession = Depends(get_db),
 ):
-    """Fork 一个角色，返回新创建的角色"""
     service = CharacterService(db)
     result = await service.fork_character(
         character_id,
@@ -86,19 +93,16 @@ async def fork_character(
     )
     if not result:
         raise HTTPException(status_code=404, detail="Original character not found")
-
     _, forked = result
     return forked
 
 
 @router.get("/{character_id}/fork-chain")
 async def get_fork_chain(character_id: UUID, db: AsyncSession = Depends(get_db)):
-    """获取角色的 Fork 链"""
     service = CharacterService(db)
     chain = await service.get_fork_chain(character_id)
     if not chain:
         raise HTTPException(status_code=404, detail="Character not found")
-
     return {
         "original_id": str(chain["original"].id),
         "original_name": chain["original"].name,
@@ -119,26 +123,21 @@ async def get_fork_chain(character_id: UUID, db: AsyncSession = Depends(get_db))
 @router.post("/{character_id}/preview")
 async def preview_character(
     character_id: UUID,
-    preview: CharacterPreview,
+    preview: CharacterPreviewRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """角色预览 - 当前为 Mock 实现，未来集成 Pota"""
     service = CharacterService(db)
     character = await service.get_character(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
 
-    # Mock 预览逻辑 - 未来替换为 Pota API 调用
-    char_data = character.character_data
-    core = char_data.get("core", {})
-    surface = char_data.get("layers", {}).get("surface", "")
-
-    # 简单的模板回复
-    mock_response = f"[{core.get('name', 'Unknown')}] 以{surface}的方式说: 我听到了你说'{preview.message}'，但我还在开发中..."
+    cd = character.character_data
+    contour = cd.get("contour", {})
+    demeanor = cd.get("demeanor", {})
 
     return {
-        "character_name": core.get("name"),
+        "character_name": contour.get("name"),
         "user_message": preview.message,
-        "response": mock_response,
+        "response": f"[{contour.get('name', '?')}] 以{demeanor.get('speech_style', '一贯')}的方式说: 我听到了你说'{preview.message}'，但我还在开发中...",
         "mode": "mock",
     }

@@ -1,32 +1,52 @@
-from typing import List, Optional
+import copy
+from typing import List, Optional, Tuple
 from uuid import UUID
+
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from ..models.character import Character
+from ..models.tag import Tag
 from ..schemas.character import CharacterCreate, CharacterUpdate
+from .tag import TagService
 
 
 class CharacterService:
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.tag_service = TagService(db)
 
     async def create_character(self, character: CharacterCreate) -> Character:
+        tags = await self.tag_service.get_or_create_tags(character.tag_names)
+        name = character.character_data.contour.name or "未命名"
+
         db_character = Character(
-            name=character.name,
+            name=name,
             character_data=character.character_data.model_dump(),
             is_public=character.is_public,
-            tags=character.tags,
+            tags=tags,
         )
         self.db.add(db_character)
         await self.db.commit()
-        await self.db.refresh(db_character)
+
+        result = await self.db.execute(
+            select(Character)
+            .where(Character.id == db_character.id)
+            .options(selectinload(Character.tags))
+        )
+        db_character = result.scalar_one()
+
+        await self.tag_service.update_tag_counts([t.id for t in tags])
+        await self.db.commit()
+
         return db_character
 
     async def get_character(self, character_id: UUID) -> Optional[Character]:
         result = await self.db.execute(
-            select(Character).where(Character.id == character_id)
+            select(Character)
+            .where(Character.id == character_id)
+            .options(selectinload(Character.tags))
         )
         return result.scalar_one_or_none()
 
@@ -39,14 +59,55 @@ class CharacterService:
             .order_by(Character.created_at.desc())
             .offset(skip)
             .limit(limit)
+            .options(selectinload(Character.tags))
         )
-        return result.scalars().all()
+        return result.scalars().unique().all()
+
+    async def search_public_characters(
+        self,
+        skip: int = 0,
+        limit: int = 20,
+        search: Optional[str] = None,
+        tag_names: Optional[List[str]] = None,
+        sort_by: str = "recent",
+    ) -> Tuple[List[Character], int]:
+        base = select(Character).where(Character.is_public == True)
+
+        if tag_names:
+            cleaned = [n.lower().strip() for n in tag_names if n.strip()]
+            if cleaned:
+                base = base.join(Character.tags).where(Tag.name.in_(cleaned))
+
+        if search:
+            term = f"%{search}%"
+            base = base.where(
+                or_(
+                    Character.name.ilike(term),
+                    Character.character_data["anchor"]["essence"].astext.ilike(term),
+                    Character.character_data["contour"]["name"].astext.ilike(term),
+                )
+            )
+
+        count_stmt = select(func.count()).select_from(base.subquery())
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar() or 0
+
+        base = base.order_by(Character.created_at.desc())
+        base = base.offset(skip).limit(limit).options(selectinload(Character.tags))
+
+        result = await self.db.execute(base)
+        characters = result.scalars().unique().all()
+
+        return characters, total
 
     async def get_user_characters(self, author_id: str) -> List[Character]:
         result = await self.db.execute(
-            select(Character).where(Character.author_id == author_id)
+            select(Character)
+            .where(Character.author_id == author_id)
+            .order_by(Character.updated_at.desc())
+            .options(selectinload(Character.tags))
         )
-        return result.scalars().all()
+        return result.scalars().unique().all()
 
     async def update_character(
         self, character_id: UUID, update: CharacterUpdate
@@ -55,25 +116,32 @@ class CharacterService:
         if not character:
             return None
 
-        if update.name is not None:
-            character.name = update.name
         if update.character_data is not None:
             character.character_data = update.character_data.model_dump()
+            # 同步 name
+            character.name = update.character_data.contour.name or character.name
         if update.is_public is not None:
             character.is_public = update.is_public
-        if update.tags is not None:
-            character.tags = update.tags
+        if update.tag_names is not None:
+            tags = await self.tag_service.get_or_create_tags(update.tag_names)
+            character.tags = tags
+            await self.db.flush()
+            await self.tag_service.update_tag_counts([t.id for t in tags])
 
         await self.db.commit()
-        await self.db.refresh(character)
+        await self.db.refresh(character, ["tags"])
         return character
 
     async def delete_character(self, character_id: UUID) -> bool:
         character = await self.get_character(character_id)
         if not character:
             return False
+        tag_ids = [t.id for t in character.tags]
         await self.db.delete(character)
         await self.db.commit()
+        if tag_ids:
+            await self.tag_service.update_tag_counts(tag_ids)
+            await self.db.commit()
         return True
 
     async def fork_character(
@@ -81,71 +149,61 @@ class CharacterService:
         character_id: UUID,
         new_name: Optional[str] = None,
         new_author_id: str = "anonymous",
-        modifications: Optional[dict] = None
-    ) -> Optional[tuple]:
-        """Fork 一个角色创建副本，返回 (original, forked)"""
+    ) -> Optional[Tuple[Character, Character]]:
         original = await self.get_character(character_id)
         if not original:
             return None
 
-        # 深拷贝角色数据
-        import copy
         forked_data = copy.deepcopy(original.character_data)
 
-        # 确定新名称
         if new_name:
             final_name = new_name
         else:
-            # 自动生成名称
             base_name = original.name.replace(" (Fork)", "")
             result = await self.db.execute(
                 select(Character)
                 .where(Character.fork_from == character_id)
                 .where(Character.author_id == new_author_id)
             )
-            existing_forks = result.scalars().all()
+            existing = result.scalars().all()
+            final_name = (
+                f"{base_name} (Fork {len(existing) + 1})"
+                if existing
+                else f"{base_name} (Fork)"
+            )
 
-            if existing_forks:
-                final_name = f"{base_name} (Fork {len(existing_forks) + 1})"
-            else:
-                final_name = f"{base_name} (Fork)"
-
-        # 同步更新 character_data.core.name
-        if "core" in forked_data and "name" in forked_data["core"]:
-            forked_data["core"]["name"] = final_name
+        if "contour" in forked_data:
+            forked_data["contour"]["name"] = final_name
 
         forked = Character(
             name=final_name,
             author_id=new_author_id,
             character_data=forked_data,
             is_public=False,
-            tags=original.tags.copy() if original.tags else [],
+            tags=original.tags,
             fork_from=character_id,
         )
-
         self.db.add(forked)
         await self.db.commit()
-        await self.db.refresh(forked)
+        await self.db.refresh(forked, ["tags"])
 
         return (original, forked)
 
-    async def get_fork_chain(self, character_id: UUID) -> dict:
-        """获取 Fork 链（原始角色和所有 fork）"""
+    async def get_fork_chain(self, character_id: UUID) -> Optional[dict]:
         character = await self.get_character(character_id)
         if not character:
             return None
 
-        # 向上追溯原始角色
         original_id = character.fork_from or character.id
         original = await self.get_character(original_id)
 
-        # 获取所有 fork
         result = await self.db.execute(
             select(Character)
             .where((Character.fork_from == original_id) | (Character.id == original_id))
             .order_by(Character.created_at)
+            .options(selectinload(Character.tags))
         )
-        chain = result.scalars().all()
+        chain = result.scalars().unique().all()
 
         return {
             "original": original,

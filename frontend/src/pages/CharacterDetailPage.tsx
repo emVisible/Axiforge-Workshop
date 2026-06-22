@@ -6,9 +6,93 @@ import {
   useForkCharacter,
 } from "@/hooks/useCharacters";
 import { characterApi } from "@/api/characters";
-import { LoadingSpinner, ErrorDisplay } from "@/components/ui";
-import { ForkDialog, ForkChain } from "@/components/characters";
-import type { PreviewResponse } from "@/types/character";
+import { ErrorDisplay, Button } from "@/components/ui";
+import {
+  ForkDialog,
+  ForkChain,
+  PromptExport,
+  RelationList,
+  AddRelationDialog,
+  RelationGraph,
+} from "@/components/characters";
+import type { PreviewResponse, CharacterData } from "@/types/character";
+import Skeleton from "@/components/ui/Skeleton";
+
+const layerTabs = [
+  {
+    key: "anchor",
+    label: "锚点",
+    icon: "⚓",
+    color: "bg-purple-50 text-purple-700 border-purple-200",
+  },
+  {
+    key: "psyche",
+    label: "内心",
+    icon: "🧠",
+    color: "bg-rose-50 text-rose-700 border-rose-200",
+  },
+  {
+    key: "contour",
+    label: "轮廓",
+    icon: "👤",
+    color: "bg-blue-50 text-blue-700 border-blue-200",
+  },
+  {
+    key: "demeanor",
+    label: "举止",
+    icon: "🎭",
+    color: "bg-cyan-50 text-cyan-700 border-cyan-200",
+  },
+  {
+    key: "trace",
+    label: "轨迹",
+    icon: "📜",
+    color: "bg-amber-50 text-amber-700 border-amber-200",
+  },
+  {
+    key: "bond",
+    label: "羁绊",
+    icon: "🔗",
+    color: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  },
+];
+
+const fieldLabels: Record<string, Record<string, string>> = {
+  contour: {
+    name: "姓名",
+    appearance: "外貌",
+    age_era: "年龄/时代",
+    identity: "身份",
+    first_impression: "第一印象",
+  },
+  demeanor: {
+    speech_style: "说话方式",
+    habits: "习惯",
+    typical_reaction: "常见反应",
+    expressiveness: "情绪外露",
+  },
+  psyche: {
+    desire: "深层欲望",
+    fear: "核心恐惧",
+    conflict: "内在矛盾",
+    self_perception: "自我认知",
+  },
+  anchor: { essence: "本质概括", theme: "人生主题", core_belief: "核心信念" },
+  trace: { background: "出身背景", turning_point: "转折点" },
+  bond: {
+    attitude_to_others: "对他人态度",
+    intimate_pattern: "亲密关系",
+    hostile_pattern: "敌对关系",
+    group_role: "群体角色",
+  },
+};
+
+const mainTabs = [
+  { key: "info" as const, label: "📋 角色信息" },
+  { key: "preview" as const, label: "💬 对话预览" },
+  { key: "export" as const, label: "📤 导出" },
+  { key: "relations" as const, label: "🕸️ 关系" },
+];
 
 export default function CharacterDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,14 +101,35 @@ export default function CharacterDetailPage() {
   const deleteCharacter = useDeleteCharacter();
   const forkCharacter = useForkCharacter();
 
-  const [isForkDialogOpen, setIsForkDialogOpen] = useState(false);
+  const [isForkOpen, setIsForkOpen] = useState(false);
+  const [isAddRelationOpen, setIsAddRelationOpen] = useState(false);
+  const [activeLayer, setActiveLayer] = useState("anchor");
+  const [activeTab, setActiveTab] = useState<
+    "info" | "preview" | "export" | "relations"
+  >("info");
   const [message, setMessage] = useState("");
   const [previewResponse, setPreviewResponse] =
     useState<PreviewResponse | null>(null);
   const [isSending, setIsSending] = useState(false);
-  const [activeTab, setActiveTab] = useState<"info" | "preview">("info");
+  const [copiedId, setCopiedId] = useState(false);
 
-  if (isLoading) return <LoadingSpinner />;
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto animate-fadeIn space-y-6">
+        <Skeleton className="h-4 w-24" />
+        <div className="bg-white rounded-2xl p-8 space-y-4">
+          <div className="flex gap-6">
+            <Skeleton className="w-20 h-20 rounded-2xl" />
+            <div className="flex-1 space-y-3">
+              <Skeleton className="h-7 w-48" />
+              <Skeleton className="h-4 w-64" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (error)
     return (
       <ErrorDisplay
@@ -33,6 +138,9 @@ export default function CharacterDetailPage() {
       />
     );
   if (!character) return <ErrorDisplay message="角色不存在" />;
+
+  const cd = character.character_data as CharacterData;
+  const displayName = character.name || cd?.contour?.name || "未命名";
 
   const handleDelete = async () => {
     if (!confirm("确定要删除这个角色吗？此操作不可撤销。")) return;
@@ -53,6 +161,12 @@ export default function CharacterDetailPage() {
     navigate(`/characters/${forked.id}`);
   };
 
+  const handleCopyId = async () => {
+    await navigator.clipboard.writeText(character.id);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
+  };
+
   const handlePreview = async () => {
     if (!message.trim()) return;
     setIsSending(true);
@@ -61,305 +175,252 @@ export default function CharacterDetailPage() {
       setPreviewResponse(response);
       setMessage("");
     } catch (err) {
-      console.error("预览失败:", err);
+      console.error(err);
     } finally {
       setIsSending(false);
     }
   };
 
+  const renderLayerFields = (layerKey: string) => {
+    const data = (cd as any)[layerKey];
+    if (!data) return <p className="text-gray-400 text-sm">未设定</p>;
+
+    if (layerKey === "trace") {
+      const hasTrace =
+        data.background || data.turning_point || data.key_events?.length > 0;
+      if (!hasTrace) return <p className="text-gray-400 text-sm">未设定</p>;
+      return (
+        <div className="space-y-3">
+          {data.background && (
+            <FieldRow label="出身背景" value={data.background} />
+          )}
+          {data.turning_point && (
+            <FieldRow label="转折点" value={data.turning_point} />
+          )}
+          {data.key_events?.length > 0 && (
+            <div>
+              <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+                关键事件
+              </dt>
+              <dd className="flex flex-wrap gap-1.5">
+                {data.key_events.map((e: string, i: number) => (
+                  <span
+                    key={i}
+                    className="px-2.5 py-1 bg-amber-50 text-amber-700 text-xs rounded-full border border-amber-200"
+                  >
+                    {e}
+                  </span>
+                ))}
+              </dd>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const entries = Object.entries(data).filter(([k]) => k !== "key_events");
+    const filled = entries.filter(([_, v]) => v);
+    if (filled.length === 0)
+      return <p className="text-gray-400 text-sm">未设定</p>;
+
+    return (
+      <div className="space-y-3">
+        {filled.map(([key, value]) => (
+          <FieldRow
+            key={key}
+            label={fieldLabels[layerKey]?.[key] || key}
+            value={value as string}
+          />
+        ))}
+      </div>
+    );
+  };
+
   return (
-    <div className="max-w-4xl mx-auto">
-      {/* Fork 对话框 */}
+    <div className="max-w-4xl mx-auto animate-fadeIn">
+      {/* 对话框 */}
       <ForkDialog
         character={character}
-        isOpen={isForkDialogOpen}
-        onClose={() => setIsForkDialogOpen(false)}
+        isOpen={isForkOpen}
+        onClose={() => setIsForkOpen(false)}
         onFork={handleFork}
         isForking={forkCharacter.isPending}
       />
+      <AddRelationDialog
+        characterId={character.id}
+        isOpen={isAddRelationOpen}
+        onClose={() => setIsAddRelationOpen(false)}
+      />
 
-      {/* 顶部导航 */}
-      <div className="mb-6">
-        <Link to="/" className="text-blue-500 hover:text-blue-700 text-sm">
-          ← 返回大厅
+      {/* 面包屑 */}
+      <nav className="mb-6">
+        <Link
+          to="/hall"
+          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          ← 大厅
         </Link>
-      </div>
+      </nav>
 
       {/* Fork 链 */}
-      <div className="mb-6">
-        <ForkChain characterId={character.id} />
-      </div>
+      <ForkChain characterId={character.id} />
 
-      {/* 角色头部信息 */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-6">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-2xl">
-              {character.character_data.core.name[0]}
+      {/* 头部卡片 */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-6">
+        <div className="flex items-start gap-6">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-purple-200 flex-shrink-0">
+            {displayName[0]}
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 mb-1">
+              {displayName}
+            </h1>
+            {cd?.anchor?.essence && (
+              <p className="text-gray-500 mb-3">{cd.anchor.essence}</p>
+            )}
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {character.tags.map((tag) => (
+                <span
+                  key={tag.id}
+                  className="px-2.5 py-1 text-xs font-medium rounded-full border"
+                  style={{
+                    color: tag.color,
+                    borderColor: tag.color + "40",
+                    backgroundColor: tag.color + "10",
+                  }}
+                >
+                  {tag.name}
+                </span>
+              ))}
+              <span
+                className={`px-2.5 py-1 text-xs rounded-full border ${
+                  character.is_public
+                    ? "text-emerald-600 border-emerald-200 bg-emerald-50"
+                    : "text-gray-400 border-gray-200 bg-gray-50"
+                }`}
+              >
+                {character.is_public ? "🌐 公开" : "🔒 私有"}
+              </span>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {character.name || character.character_data.core.name}
-              </h1>
-              <p className="text-gray-500 mt-1">
-                {character.character_data.core.archetype}
-              </p>
-              <div className="flex gap-2 mt-2">
-                {character.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="px-2 py-1 bg-gray-100 text-xs rounded-full"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
+            {/* 角色 ID */}
+            <div className="flex items-center gap-2">
+              <code className="text-xs text-gray-300 select-all bg-gray-50 px-2 py-0.5 rounded">
+                {character.id}
+              </code>
+              <button
+                onClick={handleCopyId}
+                className="text-xs text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0"
+              >
+                {copiedId ? "✓ 已复制" : "📋 复制ID"}
+              </button>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <Link
+          <div className="flex gap-2 flex-shrink-0">
+            <Button
+              as="link"
               to={`/characters/${character.id}/edit`}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 flex items-center gap-1"
+              variant="secondary"
+              size="sm"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                />
-              </svg>
               编辑
-            </Link>
-            <button
-              onClick={() => setIsForkDialogOpen(true)}
-              className="px-4 py-2 border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 flex items-center gap-1"
+            </Button>
+            <Button
+              onClick={() => setIsForkOpen(true)}
+              variant="secondary"
+              size="sm"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                />
-              </svg>
               Fork
-            </button>
-            <button
-              onClick={handleDelete}
-              className="px-4 py-2 border border-red-300 text-red-700 rounded-lg hover:bg-red-50 flex items-center gap-1"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                />
-              </svg>
+            </Button>
+            <Button onClick={handleDelete} variant="danger" size="sm">
               删除
-            </button>
+            </Button>
           </div>
         </div>
 
-        {/* Fork 来源 */}
         {character.fork_from && (
-          <div className="mt-4 pt-4 border-t border-gray-100">
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                />
-              </svg>
-              Fork 自
-              <Link
-                to={`/characters/${character.fork_from}`}
-                className="text-blue-500 hover:text-blue-700"
-              >
-                原始角色
-              </Link>
-            </div>
+          <div className="mt-4 pt-4 border-t border-gray-50 text-sm text-gray-400">
+            Fork 自{" "}
+            <Link
+              to={`/characters/${character.fork_from}`}
+              className="text-blue-500 hover:text-blue-600"
+            >
+              原始角色
+            </Link>
           </div>
         )}
       </div>
 
-      {/* 标签切换 */}
-      <div className="flex gap-4 mb-6 border-b border-gray-200">
-        <button
-          onClick={() => setActiveTab("info")}
-          className={`pb-3 px-1 border-b-2 transition-colors ${
-            activeTab === "info"
-              ? "border-blue-500 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          角色信息
-        </button>
-        <button
-          onClick={() => setActiveTab("preview")}
-          className={`pb-3 px-1 border-b-2 transition-colors ${
-            activeTab === "preview"
-              ? "border-blue-500 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          对话预览
-        </button>
+      {/* 主标签切换 */}
+      <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl">
+        {mainTabs.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+              activeTab === key
+                ? "bg-white text-gray-900 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {/* 角色信息 - 与之前相同 */}
+      {/* === 角色信息 === */}
       {activeTab === "info" && (
         <div className="space-y-6">
-          {/* 核心设定 */}
-          <section className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">核心设定</h2>
-            <dl className="space-y-4">
-              {Object.entries(character.character_data.core).map(
-                ([key, value]) => (
-                  <div key={key}>
-                    <dt className="text-sm font-medium text-gray-500 capitalize">
-                      {key === "name"
-                        ? "角色名"
-                        : key === "archetype"
-                          ? "本质概括"
-                          : key === "voice"
-                            ? "说话风格"
-                            : key === "core_memory"
-                              ? "关键记忆"
-                              : key === "desire"
-                                ? "深层欲望"
-                                : key === "fear"
-                                  ? "核心恐惧"
-                                  : key}
-                    </dt>
-                    <dd className="mt-1 text-gray-900">{value || "未设定"}</dd>
-                  </div>
-                ),
-              )}
-            </dl>
-          </section>
+          <div className="flex gap-2 flex-wrap">
+            {layerTabs.map(({ key, label, icon, color }) => (
+              <button
+                key={key}
+                onClick={() => setActiveLayer(key)}
+                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border ${
+                  activeLayer === key
+                    ? color + " shadow-sm"
+                    : "border-gray-200 text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                {icon} {label}
+              </button>
+            ))}
+          </div>
 
-          {/* 人格层次 */}
-          <section className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">人格层次</h2>
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">表层人格</h3>
-                <p className="mt-1 text-gray-900">
-                  {character.character_data.layers.surface || "未设定"}
-                </p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">真实自我</h3>
-                <p className="mt-1 text-gray-900">
-                  {character.character_data.layers.intimate || "未设定"}
-                </p>
-              </div>
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">压力模式</h3>
-                <p className="mt-1 text-gray-900">
-                  {character.character_data.layers.under_stress || "未设定"}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* 动态系统 */}
-          <section className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">动态系统</h2>
-
-            <div className="mb-6">
-              <h3 className="text-sm font-medium text-gray-500 mb-3">
-                情感触发器
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {Object.entries(
-                  character.character_data.dynamics.emotional_triggers,
-                ).map(([emotion, triggers]) => (
-                  <div key={emotion} className="border rounded-lg p-4">
-                    <h4 className="font-medium text-sm mb-2">{emotion}</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {triggers.length > 0 ? (
-                        triggers.map((trigger: any, i: number) => (
-                          <span
-                            key={i}
-                            className="px-2 py-1 bg-gray-100 text-xs rounded-full"
-                          >
-                            {trigger}
-                          </span>
-                        ))
-                      ) : (
-                        <span className="text-xs text-gray-400">未设定</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <h3 className="text-sm font-medium text-gray-500">成长轨迹</h3>
-              <p className="mt-1 text-gray-900">
-                {character.character_data.dynamics.growth_arc || "未设定"}
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-gray-500">人际模式</h3>
-              <p className="mt-1 text-gray-900">
-                {character.character_data.dynamics.relationship_patterns ||
-                  "未设定"}
-              </p>
-            </div>
-          </section>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 animate-fadeIn">
+            <h2 className="text-lg font-semibold text-gray-900 mb-6">
+              {layerTabs.find((l) => l.key === activeLayer)?.icon}{" "}
+              {layerTabs.find((l) => l.key === activeLayer)?.label}
+            </h2>
+            {renderLayerFields(activeLayer)}
+          </div>
         </div>
       )}
 
-      {/* 对话预览 - 与之前相同 */}
+      {/* === 对话预览 === */}
       {activeTab === "preview" && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-medium text-gray-900 mb-4">对话预览</h2>
-          <p className="text-sm text-gray-500 mb-4">
-            测试与角色的对话交互（当前为 Mock 模式）
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">对话预览</h2>
+          <p className="text-sm text-gray-400 mb-6">
+            测试角色对话（Mock 模式）
           </p>
 
           {previewResponse && (
-            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
-              <div className="text-right">
-                <div className="inline-block bg-blue-500 text-white rounded-lg px-4 py-2 max-w-md">
+            <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-3 max-h-64 overflow-y-auto">
+              <div className="flex justify-end">
+                <div className="bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[70%] text-sm">
                   {previewResponse.user_message}
                 </div>
               </div>
-              <div className="text-left">
-                <div className="inline-block bg-white border border-gray-200 rounded-lg px-4 py-2 max-w-md">
-                  <p className="text-sm text-gray-500 mb-1">
+              <div className="flex justify-start">
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%] shadow-sm">
+                  <p className="text-xs text-gray-400 mb-1">
                     {previewResponse.character_name}
                   </p>
-                  <p>{previewResponse.response}</p>
+                  <p className="text-sm text-gray-700">
+                    {previewResponse.response}
+                  </p>
                 </div>
               </div>
             </div>
@@ -371,26 +432,73 @@ export default function CharacterDetailPage() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handlePreview()}
-              placeholder="输入消息测试角色..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="输入消息..."
               disabled={isSending}
+              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-sm"
             />
-            <button
+            <Button
               onClick={handlePreview}
               disabled={isSending || !message.trim()}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              size="md"
             >
-              {isSending ? "发送中..." : "发送"}
-            </button>
+              {isSending ? "..." : "发送"}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* === 导出 === */}
+      {activeTab === "export" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
+          <h2 className="text-lg font-semibold text-gray-900 mb-6">
+            导出 Prompt
+          </h2>
+          <PromptExport characterData={cd} characterName={displayName} />
+        </div>
+      )}
+
+      {/* === 关系 === */}
+      {activeTab === "relations" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">关系图谱</h2>
+              <Button size="sm" onClick={() => setIsAddRelationOpen(true)}>
+                + 添加关系
+              </Button>
+            </div>
+            <RelationGraph characterId={character.id} />
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              关系列表
+            </h2>
+            <RelationList characterId={character.id} />
           </div>
         </div>
       )}
 
       {/* 元数据 */}
-      <div className="mt-6 text-sm text-gray-400 flex justify-between">
-        <span>创建时间: {new Date(character.created_at).toLocaleString()}</span>
-        <span>更新时间: {new Date(character.updated_at).toLocaleString()}</span>
+      <div className="mt-6 text-xs text-gray-300 flex justify-between">
+        <span>
+          创建于 {new Date(character.created_at).toLocaleDateString()}
+        </span>
+        <span>
+          更新于 {new Date(character.updated_at).toLocaleDateString()}
+        </span>
       </div>
+    </div>
+  );
+}
+
+function FieldRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
+        {label}
+      </dt>
+      <dd className="text-sm text-gray-700 leading-relaxed">{value}</dd>
     </div>
   );
 }

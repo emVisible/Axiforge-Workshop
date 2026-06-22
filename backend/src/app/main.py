@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
 from .routes import character_router
+from .routes.tag import router as tag_router
+from .routes.relation import router as relation_router
 
 app = FastAPI(
     title="Axiforge Workshop",
@@ -19,8 +21,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册路由
 app.include_router(character_router)
+app.include_router(tag_router)
+app.include_router(relation_router)
 
 
 @app.on_event("startup")

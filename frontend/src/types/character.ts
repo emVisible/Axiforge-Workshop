@@ -1,67 +1,65 @@
-export interface EmotionalTriggers {
-  喜悦: string[];
-  愤怒: string[];
-  悲伤: string[];
-}
+// ============================================
+// 六层数据结构
+// ============================================
 
-export interface CharacterCore {
+export interface Contour {
   name: string;
-  archetype: string;
-  voice: string;
-  core_memory: string;
-  desire: string;
-  fear: string;
+  appearance?: string;
+  age_era?: string;
+  identity?: string;
+  first_impression?: string;
 }
 
-export interface CharacterLayers {
-  surface: string;
-  intimate: string;
-  under_stress: string;
+export interface Demeanor {
+  speech_style?: string;
+  habits?: string;
+  typical_reaction?: string;
+  expressiveness?: string;
 }
 
-export interface CharacterDynamics {
-  emotional_triggers: EmotionalTriggers;
-  growth_arc: string;
-  relationship_patterns: string;
+export interface Psyche {
+  desire?: string;
+  fear?: string;
+  conflict?: string;
+  self_perception?: string;
+}
+
+export interface Anchor {
+  essence: string;
+  theme?: string;
+  core_belief?: string;
+}
+
+export interface Trace {
+  background?: string;
+  key_events: string[];
+  turning_point?: string;
+}
+
+export interface Bond {
+  attitude_to_others?: string;
+  intimate_pattern?: string;
+  hostile_pattern?: string;
+  group_role?: string;
 }
 
 export interface CharacterData {
-  core: CharacterCore;
-  layers: CharacterLayers;
-  dynamics: CharacterDynamics;
+  contour: Contour;
+  demeanor: Demeanor;
+  psyche: Psyche;
+  anchor: Anchor;
+  trace: Trace;
+  bond: Bond;
 }
 
-export interface Character {
-  id: string;
-  name: string;
-  author_id: string;
-  character_data: CharacterData;
-  is_public: boolean;
-  tags: string[];
-  fork_from: string | null;
-  created_at: string;
-  updated_at: string;
-}
+// ============================================
+// API 类型
+// ============================================
 
-export interface CharacterCreate {
-  name: string;
-  character_data: CharacterData;
-  is_public: boolean;
-  tags: string[];
-}
 
-export interface CharacterUpdate {
-  name?: string;
-  character_data?: CharacterData;
-  is_public?: boolean;
-  tags?: string[];
-}
-
-export interface PreviewResponse {
-  character_name: string;
-  user_message: string;
-  response: string;
-  mode: string;
+export interface ForkRequest {
+  new_name?: string;
+  author_id?: string;
 }
 
 export interface ForkChainItem {
@@ -79,7 +77,103 @@ export interface ForkChain {
   chain: ForkChainItem[];
 }
 
-export interface ForkRequest {
-  new_name?: string;
-  author_id?: string;
+export interface PreviewResponse {
+  character_name: string;
+  user_message: string;
+  response: string;
+  mode: string;
+}
+// ... 六层类型保持不变 ...
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  usage_count: number;
+  created_at: string;
+}
+
+export interface Character {
+  id: string;
+  name: string;
+  author_id: string;
+  character_data: CharacterData;
+  is_public: boolean;
+  tags: Tag[];  // 改为 Tag 对象数组
+  fork_from: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+
+export interface CharacterCreate {
+  character_data: CharacterData;
+  is_public: boolean;
+  tag_names: string[];
+}
+
+export interface CharacterUpdate {
+  character_data?: CharacterData;
+  is_public?: boolean;
+  tag_names?: string[];
+}
+export interface CharacterSearchResult {
+  items: Character[];
+  total: number;
+  skip: number;
+  limit: number;
+}
+
+// ============================================
+// 关系系统
+// ============================================
+
+export interface RelationResponse {
+  id: string;
+  source_id: string;
+  target_id: string;
+  target_name: string;
+  target_essence?: string;
+  relation_name: string;
+  relation_type: string;
+  description?: string;
+  is_mutual: boolean;
+  created_at: string;
+}
+
+export interface RelationCreate {
+  target_id: string;
+  relation_name: string;
+  relation_type: string;
+  description?: string;
+  is_mutual: boolean;
+}
+
+export interface RelationGraphNode {
+  id: string;
+  name: string;
+  essence?: string;
+  is_center: boolean;
+}
+
+export interface RelationGraphLink {
+  source: string;
+  target: string;
+  relation_name: string;
+  is_mutual: boolean;
+}
+
+export interface RelationGraph {
+  nodes: RelationGraphNode[];
+  links: RelationGraphLink[];
+}
+
+export interface PresetCategory {
+  [category: string]: PresetRelation[];
+}
+
+export interface PresetRelation {
+  name: string;
+  category: string;
+  mutual: boolean;
 }
