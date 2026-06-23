@@ -9,6 +9,10 @@ from sqlalchemy.orm import selectinload
 from ..models.character import Character
 from ..models.tag import Tag
 from ..schemas.character import CharacterCreate, CharacterUpdate
+from ..schemas.relation import RelationCreate
+
+from .relation import RelationService
+from .version import VersionService
 from .tag import TagService
 
 
@@ -18,13 +22,17 @@ class CharacterService:
         self.tag_service = TagService(db)
 
     async def create_character(self, character: CharacterCreate) -> Character:
-        tags = await self.tag_service.get_or_create_tags(character.tag_names)
-        name = character.character_data.contour.name or "未命名"
+        cd = character.character_data
+        name = cd.anchor.name or "未命名"
+        tag_names = cd.anchor.tags if hasattr(cd.anchor, "tags") else []
+
+        tags = await self.tag_service.get_or_create_tags(tag_names)
 
         db_character = Character(
             name=name,
-            character_data=character.character_data.model_dump(),
+            character_data=cd.model_dump(),
             is_public=character.is_public,
+            image_path=character.image_path,
             tags=tags,
         )
         self.db.add(db_character)
@@ -39,7 +47,6 @@ class CharacterService:
 
         await self.tag_service.update_tag_counts([t.id for t in tags])
         await self.db.commit()
-
         return db_character
 
     async def get_character(self, character_id: UUID) -> Optional[Character]:
@@ -112,18 +119,30 @@ class CharacterService:
     async def update_character(
         self, character_id: UUID, update: CharacterUpdate
     ) -> Optional[Character]:
+
         character = await self.get_character(character_id)
         if not character:
             return None
 
+        version_service = VersionService(self.db)
+        await version_service.create_version(character)
+
         if update.character_data is not None:
-            character.character_data = update.character_data.model_dump()
-            # 同步 name
-            character.name = update.character_data.contour.name or character.name
+            cd = update.character_data
+            character.character_data = cd.model_dump()
+            character.name = cd.anchor.name or character.name
+
         if update.is_public is not None:
             character.is_public = update.is_public
-        if update.tag_names is not None:
-            tags = await self.tag_service.get_or_create_tags(update.tag_names)
+
+        if update.image_path is not None:
+            character.image_path = update.image_path
+
+        if update.character_data is not None and hasattr(
+            update.character_data.anchor, "tags"
+        ):
+            tag_names = update.character_data.anchor.tags
+            tags = await self.tag_service.get_or_create_tags(tag_names)
             character.tags = tags
             await self.db.flush()
             await self.tag_service.update_tag_counts([t.id for t in tags])
@@ -133,10 +152,16 @@ class CharacterService:
         return character
 
     async def delete_character(self, character_id: UUID) -> bool:
+        from .version import VersionService
+
         character = await self.get_character(character_id)
         if not character:
             return False
         tag_ids = [t.id for t in character.tags]
+
+        version_service = VersionService(self.db)
+        await version_service.delete_versions(character_id)
+
         await self.db.delete(character)
         await self.db.commit()
         if tag_ids:
@@ -181,11 +206,22 @@ class CharacterService:
             character_data=forked_data,
             is_public=False,
             tags=original.tags,
+            image_path=original.image_path,
             fork_from=character_id,
         )
         self.db.add(forked)
         await self.db.commit()
         await self.db.refresh(forked, ["tags"])
+        relation_service = RelationService(self.db)
+        await relation_service.create_relation(
+            source_id=forked.id,
+            data=RelationCreate(
+                target_id=original.id,
+                relation_name="Fork自",
+                relation_type="preset",
+                is_mutual=False,
+            ),
+        )
 
         return (original, forked)
 
@@ -196,6 +232,11 @@ class CharacterService:
 
         original_id = character.fork_from or character.id
         original = await self.get_character(original_id)
+
+        # 如果原始角色被删了，把当前角色当作 original
+        if not original:
+            original = character
+            original_id = character.id
 
         result = await self.db.execute(
             select(Character)
@@ -210,3 +251,36 @@ class CharacterService:
             "chain": chain,
             "total_forks": len([c for c in chain if c.id != original_id]),
         }
+
+    async def update_character(
+        self, character_id: UUID, update: CharacterUpdate
+    ) -> Optional[Character]:
+        from .version import VersionService
+
+        character = await self.get_character(character_id)
+        if not character:
+            return None
+
+        version_service = VersionService(self.db)
+        await version_service.create_version(character)
+        if update.image_path is not None:
+            character.image_path = update.image_path
+
+        if update.character_data is not None:
+            cd = update.character_data
+            character.character_data = cd.model_dump()
+            character.name = cd.anchor.name or character.name
+
+            # tags 从 anchor.tags 取
+            tag_names = cd.anchor.tags if cd.anchor.tags else []
+            tags = await self.tag_service.get_or_create_tags(tag_names)
+            character.tags = tags
+            await self.db.flush()
+            await self.tag_service.update_tag_counts([t.id for t in tags])
+
+        if update.is_public is not None:
+            character.is_public = update.is_public
+
+        await self.db.commit()
+        await self.db.refresh(character, ["tags"])
+        return character

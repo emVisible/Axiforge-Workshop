@@ -96,7 +96,7 @@ export default function CharacterSearchSelect({
             >
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                  {(c.character_data?.contour?.name || c.name)[0]}
+                  {(c.character_data?.anchor?.name || c.name)[0]}
                 </div>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">

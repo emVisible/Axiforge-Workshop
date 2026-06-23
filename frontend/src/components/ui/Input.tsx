@@ -4,14 +4,15 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   hint?: string;
+  required?: boolean;
 }
-
 const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, className = "", ...props }, ref) => {
+  ({ label, error, hint, className = "", required, ...props }, ref) => {
     return (
       <div>
         {label && (
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
+            {required && <span className="text-red-400 mx-0.5">*</span>}
             {label}
           </label>
         )}

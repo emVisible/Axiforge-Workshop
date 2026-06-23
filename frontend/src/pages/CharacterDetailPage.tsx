@@ -17,6 +17,7 @@ import {
 } from "@/components/characters";
 import type { PreviewResponse, CharacterData } from "@/types/character";
 import Skeleton from "@/components/ui/Skeleton";
+import VersionPanel from "@/components/characters/VersionPanel";
 
 const layerTabs = [
   {
@@ -92,6 +93,7 @@ const mainTabs = [
   { key: "preview" as const, label: "💬 对话预览" },
   { key: "export" as const, label: "📤 导出" },
   { key: "relations" as const, label: "🕸️ 关系" },
+  { key: "versions" as const, label: "🕰️ 版本" },
 ];
 
 export default function CharacterDetailPage() {
@@ -105,7 +107,7 @@ export default function CharacterDetailPage() {
   const [isAddRelationOpen, setIsAddRelationOpen] = useState(false);
   const [activeLayer, setActiveLayer] = useState("anchor");
   const [activeTab, setActiveTab] = useState<
-    "info" | "preview" | "export" | "relations"
+    "info" | "preview" | "export" | "relations" | "versions"
   >("info");
   const [message, setMessage] = useState("");
   const [previewResponse, setPreviewResponse] =
@@ -140,7 +142,7 @@ export default function CharacterDetailPage() {
   if (!character) return <ErrorDisplay message="角色不存在" />;
 
   const cd = character.character_data as CharacterData;
-  const displayName = character.name || cd?.contour?.name || "未命名";
+  const displayName = character.name || cd?.anchor?.name || "未命名";
 
   const handleDelete = async () => {
     if (!confirm("确定要删除这个角色吗？此操作不可撤销。")) return;
@@ -268,10 +270,17 @@ export default function CharacterDetailPage() {
       {/* 头部卡片 */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-6">
         <div className="flex items-start gap-6">
-          <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-purple-200 flex-shrink-0">
-            {displayName[0]}
-          </div>
-
+          {character.image_path ? (
+            <img
+              src={character.image_path}
+              alt=""
+              className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 shadow-lg"
+            />
+          ) : (
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-purple-200 flex-shrink-0">
+              {displayName[0]}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-gray-900 mb-1">
               {displayName}
@@ -453,7 +462,12 @@ export default function CharacterDetailPage() {
           <h2 className="text-lg font-semibold text-gray-900 mb-6">
             导出 Prompt
           </h2>
-          <PromptExport characterData={cd} characterName={displayName} />
+          <PromptExport
+            characterData={cd}
+            characterName={displayName}
+            characterId={character.id}
+            tags={character.tags}
+          />
         </div>
       )}
 
@@ -476,6 +490,12 @@ export default function CharacterDetailPage() {
             </h2>
             <RelationList characterId={character.id} />
           </div>
+        </div>
+      )}
+      {activeTab === "versions" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">版本历史</h2>
+          <VersionPanel characterId={character.id} />
         </div>
       )}
 

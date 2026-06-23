@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import * as d3 from "d3";
 import { useRelationGraph } from "@/hooks/useRelations";
 
@@ -18,26 +18,73 @@ interface RelationGraphProps {
   characterId: string;
 }
 
-const COLORS = {
-  background: "#f5f0e8",
-  nodeCenter: "#2d2d2d",
-  nodeOther: "#4a4a4a",
-  nodeStroke: "#8b7355",
-  linkLine: "#c44d4d",
-  linkText: "#8b4513",
-  pin: "#b8860b",
+// ── 中世纪羊皮纸色板 ──
+const Palette = {
+  parchment: "#f3ecd8",
+  parchmentDark: "#e8dfc8",
+  ink: "#3b3325",
+  inkLight: "#5c5240",
+  inkMuted: "#8a7e6b",
+  sepia: "#6b5b3e",
+  rust: "#8b4a3a",
+  ochre: "#c4944a",
+  ochreLight: "#dab866",
+  olive: "#6b7a4e",
+  slate: "#5a6570",
+  cream: "#faf6ed",
+  shadow: "rgba(59,51,37,0.12)",
+  goldLeaf: "rgba(196,148,74,0.3)",
+  goldLeafStrong: "rgba(196,148,74,0.55)",
+  threadRed: "#8b3a3a",
 };
+
+// ── 几何形状定义 ──
+// 中心：菱形 ◆
+function diamondPath(r: number): string {
+  return `M0,${-r} L${r},0 L0,${r} L${-r},0 Z`;
+}
+// 关联角色：六边形 ⬡
+function hexagonPath(r: number): string {
+  const pts = d3.range(6).map((i) => {
+    const a = (Math.PI / 3) * i - Math.PI / 6;
+    return [Math.cos(a) * r, Math.sin(a) * r];
+  });
+  return `M${pts.map((p) => p.join(",")).join("L")}Z`;
+}
+// 更多关联（>6个连线）的角色：盾形
+function shieldPath(r: number): string {
+  const top = -r;
+  const bottom = r * 1.1;
+  const mid = r * 0.7;
+  return `M${-r},${top} L${r},${top} L${r},${mid * 0.5} C${r},${mid} ${r * 0.6},${bottom} 0,${bottom} C${-r * 0.6},${bottom} ${-r},${mid} ${-r},${mid * 0.5} Z`;
+}
+
+function getNodeShape(
+  node: GraphNode,
+  linkCount: number,
+): { path: string; r: number } {
+  if (node.is_center) {
+    return { path: diamondPath(26), r: 26 };
+  }
+  if (linkCount >= 6) {
+    return { path: shieldPath(18), r: 20 };
+  }
+  return { path: hexagonPath(18), r: 18 };
+}
 
 export default function RelationGraph({ characterId }: RelationGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const { data, isLoading } = useRelationGraph(characterId);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
-  useEffect(() => {
+  const renderGraph = useCallback(() => {
     if (!data || !containerRef.current) return;
 
     const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = 400;
+    const width = isFullscreen ? window.innerWidth - 80 : container.clientWidth;
+    const height = isFullscreen ? window.innerHeight - 120 : 440;
 
     d3.select(container).selectAll("svg").remove();
 
@@ -48,41 +95,63 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .attr("height", height)
       .attr("viewBox", [0, 0, width, height]);
 
-    // 软木板背景
+    svgRef.current = svg.node();
+
+    // ── 羊皮纸背景 ──
+    const defs = svg.append("defs");
+    defs
+      .append("radialGradient")
+      .attr("id", "parchGrad")
+      .attr("cx", "50%")
+      .attr("cy", "50%")
+      .selectAll("stop")
+      .data([
+        { o: "0%", c: Palette.parchment },
+        { o: "70%", c: Palette.parchmentDark },
+        { o: "100%", c: "#e0d8bf" },
+      ])
+      .join("stop")
+      .attr("offset", (d) => d.o)
+      .attr("stop-color", (d) => d.c);
+
     svg
       .append("rect")
       .attr("width", width)
       .attr("height", height)
-      .attr("fill", COLORS.background)
-      .attr("rx", 16);
+      .attr("fill", "url(#parchGrad)")
+      .attr("rx", isFullscreen ? 0 : 16);
 
-    // 纹理点
-    for (let i = 0; i < 200; i++) {
+    // 装饰边框
+    if (!isFullscreen) {
       svg
-        .append("circle")
-        .attr("cx", Math.random() * width)
-        .attr("cy", Math.random() * height)
-        .attr("r", 0.5)
-        .attr("fill", "#d4c5b2")
-        .attr("opacity", 0.5);
+        .append("rect")
+        .attr("x", 10)
+        .attr("y", 10)
+        .attr("width", width - 20)
+        .attr("height", height - 20)
+        .attr("fill", "none")
+        .attr("stroke", Palette.inkMuted)
+        .attr("stroke-width", 0.5)
+        .attr("opacity", 0.25)
+        .attr("rx", 12);
     }
 
-    // 转换数据
-    const nodes: GraphNode[] = data.nodes.map((n) => ({
-      id: n.id,
-      name: n.name,
-      essence: n.essence,
-      is_center: n.is_center,
-    }));
+    // ── 数据 ──
+    const nodes: GraphNode[] = data.nodes.map((n) => ({ ...n }));
+    const links: GraphLink[] = data.links.map((l) => ({ ...l }));
 
-    const links: GraphLink[] = data.links.map((l) => ({
-      source: l.source,
-      target: l.target,
-      relation_name: l.relation_name,
-      is_mutual: l.is_mutual,
-    }));
+    // 计算每个节点的连线数
+    const linkCountMap = new Map<string, number>();
+    links.forEach((l) => {
+      const s =
+        typeof l.source === "string" ? l.source : (l.source as GraphNode).id;
+      const t =
+        typeof l.target === "string" ? l.target : (l.target as GraphNode).id;
+      linkCountMap.set(s, (linkCountMap.get(s) || 0) + 1);
+      linkCountMap.set(t, (linkCountMap.get(t) || 0) + 1);
+    });
 
-    // 力导向模拟
+    // ── 力导向 ──
     const simulation = d3
       .forceSimulation<GraphNode>(nodes)
       .force(
@@ -90,152 +159,218 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
         d3
           .forceLink<GraphNode, GraphLink>(links)
           .id((d) => d.id)
-          .distance(120),
+          .distance(isFullscreen ? 200 : 150),
       )
-      .force("charge", d3.forceManyBody().strength(-300))
+      .force("charge", d3.forceManyBody().strength(isFullscreen ? -700 : -450))
       .force("center", d3.forceCenter(width / 2, height / 2))
-      .force("collision", d3.forceCollide().radius(40));
+      .force("collision", d3.forceCollide().radius(isFullscreen ? 65 : 50));
 
-    // 箭头标记
+    // ── 箭头 ──
     svg
       .append("defs")
       .append("marker")
       .attr("id", "arrow")
-      .attr("viewBox", "0 -5 10 10")
+      .attr("viewBox", "0 -4 10 8")
       .attr("refX", 28)
       .attr("refY", 0)
-      .attr("markerWidth", 6)
-      .attr("markerHeight", 6)
+      .attr("markerWidth", 5)
+      .attr("markerHeight", 5)
       .attr("orient", "auto")
       .append("path")
-      .attr("fill", COLORS.linkLine)
-      .attr("d", "M0,-4L8,0L0,4");
+      .attr("fill", Palette.threadRed)
+      .attr("d", "M0,-3L7,0L0,3")
+      .attr("opacity", 0.6);
 
-    // 连线
+    // ── 连线 ──
     const linkGroup = svg.append("g");
-
     const line = linkGroup
       .selectAll<SVGLineElement, GraphLink>("line")
       .data(links)
       .join("line")
-      .attr("stroke", COLORS.linkLine)
-      .attr("stroke-width", 1.5)
-      .attr("stroke-dasharray", (d) => (d.is_mutual ? "none" : "5,3"))
-      .attr("opacity", 0.7)
+      .attr("stroke", Palette.threadRed)
+      .attr("stroke-width", (d) => (d.is_mutual ? 1.6 : 1.1))
+      .attr("stroke-dasharray", (d) => (d.is_mutual ? "none" : "5,5"))
+      .attr("opacity", 0.45)
       .attr("marker-end", (d) => (d.is_mutual ? null : "url(#arrow)"));
 
-    const linkLabel = linkGroup
-      .selectAll<SVGTextElement, GraphLink>("text")
+    const linkLabelBg = linkGroup
+      .selectAll<SVGTextElement, GraphLink>("text.lb")
       .data(links)
       .join("text")
+      .attr("class", "lb")
       .text((d) => d.relation_name)
       .attr("font-size", "10px")
-      .attr("fill", COLORS.linkText)
+      .attr("fill", Palette.cream)
       .attr("text-anchor", "middle")
-      .attr("dy", -6)
-      .style("font-family", "'Georgia', serif")
+      .attr("dy", -9)
+      .attr("stroke", Palette.cream)
+      .attr("stroke-width", 3)
+      .attr("paint-order", "stroke")
+      .style("font-family", "'Crimson Text', 'Georgia', serif")
       .style("font-style", "italic");
 
-    // 节点
+    const linkLabel = linkGroup
+      .selectAll<SVGTextElement, GraphLink>("text.ll")
+      .data(links)
+      .join("text")
+      .attr("class", "ll")
+      .text((d) => d.relation_name)
+      .attr("font-size", "10px")
+      .attr("fill", Palette.sepia)
+      .attr("text-anchor", "middle")
+      .attr("dy", -9)
+      .style("font-family", "'Crimson Text', 'Georgia', serif")
+      .style("font-style", "italic");
+
+    // ── 节点 ──
     const nodeGroup = svg.append("g");
 
-    // 图钉
-    const pins = nodeGroup
-      .selectAll<SVGCircleElement, GraphNode>("circle.pin")
-      .data(nodes)
+    // 中心光晕
+    const glow = nodeGroup
+      .selectAll<SVGCircleElement, GraphNode>("circle.glow")
+      .data(nodes.filter((n) => n.is_center))
       .join("circle")
-      .attr("class", "pin")
-      .attr("r", 4)
-      .attr("fill", COLORS.pin)
-      .attr("stroke", "#8b6914")
-      .attr("stroke-width", 1)
-      .attr("opacity", 0.8);
+      .attr("r", 40)
+      .attr("fill", "none")
+      .attr("stroke", Palette.goldLeaf)
+      .attr("stroke-width", 10)
+      .attr("opacity", 0.35);
 
-    // 节点圆
-    const circles = nodeGroup
-      .selectAll<SVGCircleElement, GraphNode>("circle.node")
+    // 节点形状
+    const nodeShapes = nodeGroup
+      .selectAll<SVGPathElement, GraphNode>("path.node")
       .data(nodes)
-      .join("circle")
+      .join("path")
       .attr("class", "node")
-      .attr("r", (d) => (d.is_center ? 22 : 16))
-      .attr("fill", (d) => (d.is_center ? COLORS.nodeCenter : COLORS.nodeOther))
-      .attr("stroke", COLORS.nodeStroke)
-      .attr("stroke-width", 2)
+      .attr("d", (d) => getNodeShape(d, linkCountMap.get(d.id) || 0).path)
+      .attr("fill", (d) => (d.is_center ? Palette.ink : Palette.cream))
+      .attr("stroke", (d) => (d.is_center ? Palette.ochre : Palette.inkMuted))
+      .attr("stroke-width", (d) => (d.is_center ? 2.2 : 1.3))
       .attr("cursor", "pointer")
-      .style("filter", "drop-shadow(2px 2px 2px rgba(0,0,0,0.2))");
+      .style("filter", (d) =>
+        d.is_center
+          ? `drop-shadow(0 2px 10px ${Palette.goldLeafStrong})`
+          : `drop-shadow(0 1px 3px ${Palette.shadow})`,
+      );
 
-    // 节点文字
+    // 标签
     const labels = nodeGroup
-      .selectAll<SVGTextElement, GraphNode>("text.node-label")
+      .selectAll<SVGTextElement, GraphNode>("text.nl")
       .data(nodes)
       .join("text")
-      .attr("class", "node-label")
-      .text((d) => (d.name.length > 6 ? d.name.slice(0, 6) + ".." : d.name))
-      .attr("font-size", (d) => (d.is_center ? "10px" : "9px"))
-      .attr("fill", "white")
+      .attr("class", "nl")
+      .text((d) => (d.name.length > 4 ? d.name.slice(0, 4) + ".." : d.name))
+      .attr("font-size", (d) => (d.is_center ? "10.5px" : "9px"))
+      .attr("fill", (d) => (d.is_center ? Palette.cream : Palette.ink))
       .attr("text-anchor", "middle")
       .attr("dy", "0.35em")
-      .attr("font-weight", (d) => (d.is_center ? "bold" : "normal"))
+      .attr("font-weight", (d) => (d.is_center ? "600" : "500"))
       .style("pointer-events", "none")
-      .style("font-family", "'Georgia', 'Noto Serif SC', serif");
+      .style(
+        "font-family",
+        "'Crimson Text', 'Georgia', 'Noto Serif SC', serif",
+      );
 
-    const drag = d3
-      .drag<SVGCircleElement, GraphNode>()
-      .on("start", (event, d) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
-      })
-      .on("drag", (event, d) => {
-        d.fx = event.x;
-        d.fy = event.y;
-      })
-      .on("end", (event, d) => {
-        if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
-      });
+    // 完整名称
+    const subLabels = nodeGroup
+      .selectAll<SVGTextElement, GraphNode>("text.sl")
+      .data(nodes.filter((n) => n.name.length > 4))
+      .join("text")
+      .attr("class", "sl")
+      .text((d) => (d.name.length > 10 ? d.name.slice(0, 9) + ".." : d.name))
+      .attr("font-size", "8.5px")
+      .attr("fill", (d) => (d.is_center ? Palette.ochre : Palette.inkMuted))
+      .attr("text-anchor", "middle")
+      .attr("dy", 18)
+      .style("pointer-events", "none")
+      .style("font-family", "'Crimson Text', 'Georgia', serif")
+      .attr("opacity", 0.6);
 
-    circles.call(drag);
+    // ── 交互 ──
+    nodeShapes.call(
+      d3
+        .drag<SVGPathElement, GraphNode>()
+        .on("start", (e, d) => {
+          if (!e.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x;
+          d.fy = d.y;
+        })
+        .on("drag", (e, d) => {
+          d.fx = e.x;
+          d.fy = e.y;
+        })
+        .on("end", (e, d) => {
+          if (!e.active) simulation.alphaTarget(0);
+          d.fx = null;
+          d.fy = null;
+        }),
+    );
 
-    // 缩放
+    nodeShapes.on("click", (_, d) => {
+      if (!d.is_center) window.location.href = `/characters/${d.id}`;
+    });
+    nodeShapes.on("mouseenter", function (_, d) {
+      const shape = getNodeShape(d, linkCountMap.get(d.id) || 0);
+      d3.select(this)
+        .transition()
+        .duration(200)
+        .attr(
+          "d",
+          shape.path.replace(
+            new RegExp(String(shape.r), "g"),
+            String(shape.r + 5),
+          ),
+        )
+        .style(
+          "filter",
+          d.is_center
+            ? `drop-shadow(0 3px 18px ${Palette.goldLeafStrong})`
+            : `drop-shadow(0 2px 8px ${Palette.shadow})`,
+        );
+    });
+    nodeShapes.on("mouseleave", function (_, d) {
+      const shape = getNodeShape(d, linkCountMap.get(d.id) || 0);
+      d3.select(this)
+        .transition()
+        .duration(300)
+        .attr("d", shape.path)
+        .style(
+          "filter",
+          d.is_center
+            ? `drop-shadow(0 2px 10px ${Palette.goldLeafStrong})`
+            : `drop-shadow(0 1px 3px ${Palette.shadow})`,
+        );
+    });
+
+    // 缩放 — 默认 1.3x
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.5, 3])
-      .on("zoom", (event) => {
-        svg.selectAll("g").attr("transform", event.transform);
+      .scaleExtent([0.25, 4])
+      .on("zoom", (e) => {
+        svg.selectAll("g").attr("transform", e.transform);
       });
-
     svg.call(zoom);
-    // 点击跳转
-    circles.on("click", (_, d) => {
-      if (!d.is_center) {
-        window.location.href = `/characters/${d.id}`;
-      }
-    });
+    svg.call(
+      zoom.transform,
+      d3.zoomIdentity.translate(-width * 0.12, -height * 0.1).scale(1.3),
+    );
 
-    // 悬浮
-    circles.on("mouseenter", function () {
-      d3.select(this)
-        .transition()
-        .duration(200)
-        .attr("r", (d: any) => (d.is_center ? 26 : 20));
-    });
-    circles.on("mouseleave", function () {
-      d3.select(this)
-        .transition()
-        .duration(200)
-        .attr("r", (d: any) => (d.is_center ? 22 : 16));
-    });
-
-    // tick 更新
+    // ── 每帧 ──
     simulation.on("tick", () => {
       line
         .attr("x1", (d) => (d.source as GraphNode).x!)
         .attr("y1", (d) => (d.source as GraphNode).y!)
         .attr("x2", (d) => (d.target as GraphNode).x!)
         .attr("y2", (d) => (d.target as GraphNode).y!);
-
+      linkLabelBg
+        .attr(
+          "x",
+          (d) => ((d.source as GraphNode).x! + (d.target as GraphNode).x!) / 2,
+        )
+        .attr(
+          "y",
+          (d) => ((d.source as GraphNode).y! + (d.target as GraphNode).y!) / 2,
+        );
       linkLabel
         .attr(
           "x",
@@ -245,26 +380,126 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
           "y",
           (d) => ((d.source as GraphNode).y! + (d.target as GraphNode).y!) / 2,
         );
-
-      pins.attr("cx", (d) => d.x!).attr("cy", (d) => d.y! - 20);
-
-      circles.attr("cx", (d) => d.x!).attr("cy", (d) => d.y!);
-
+      glow.attr("cx", (d) => d.x!).attr("cy", (d) => d.y!);
+      nodeShapes.attr("transform", (d) => `translate(${d.x},${d.y})`);
       labels.attr("x", (d) => d.x!).attr("y", (d) => d.y!);
+      subLabels.attr("x", (d) => d.x!).attr("y", (d) => d.y!);
     });
 
     return () => {
       simulation.stop();
     };
-  }, [data]);
+  }, [data, isFullscreen]);
+
+  useEffect(() => {
+    renderGraph();
+  }, [renderGraph]);
+
+  const handleExportPNG = async () => {
+    if (!svgRef.current) return;
+    setExporting(true);
+    try {
+      const clone = svgRef.current.cloneNode(true) as SVGSVGElement;
+      const b = svgRef.current.getBBox();
+      clone.setAttribute(
+        "viewBox",
+        `${b.x - 40} ${b.y - 40} ${b.width + 80} ${b.height + 80}`,
+      );
+      clone.setAttribute("width", String(b.width + 80));
+      clone.setAttribute("height", String(b.height + 80));
+      const str = new XMLSerializer().serializeToString(clone);
+      const canvas = document.createElement("canvas");
+      canvas.width = (b.width + 80) * 2;
+      canvas.height = (b.height + 80) * 2;
+      const ctx = canvas.getContext("2d")!;
+      ctx.scale(2, 2);
+      ctx.fillStyle = Palette.parchment;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const img = new Image();
+      const url = URL.createObjectURL(
+        new Blob([str], { type: "image/svg+xml;charset=utf-8" }),
+      );
+      await new Promise<void>((r) => {
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0);
+          URL.revokeObjectURL(url);
+          r();
+        };
+        img.src = url;
+      });
+      const a = document.createElement("a");
+      a.download = `relation-graph-${characterId.slice(0, 8)}.png`;
+      a.href = canvas.toDataURL("image/png");
+      a.click();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (isLoading)
     return (
-      <p className="text-sm text-gray-400 py-4 text-center">加载图谱...</p>
+      <p className="text-sm text-gray-400 py-8 text-center italic">绘制中...</p>
     );
-  if (!data || data.nodes.length === 0) return null;
+  if (!data || data.nodes.length === 0)
+    return (
+      <p className="text-sm text-gray-400 py-8 text-center italic">
+        暂无关系数据
+      </p>
+    );
 
   return (
-    <div ref={containerRef} className="w-full" style={{ minHeight: 400 }} />
+    <>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <button
+          onClick={() => setIsFullscreen(!isFullscreen)}
+          className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+        >
+          {isFullscreen ? "✕ 退出" : "⛶ 全屏"}
+        </button>
+        {!isFullscreen && (
+          <>
+            <button
+              onClick={handleExportPNG}
+              disabled={exporting}
+              className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {exporting ? "导出中..." : "📥 导出 PNG"}
+            </button>
+            <span className="text-xs text-gray-400">
+              {data.nodes.length} 节点 · {data.links.length} 连线
+            </span>
+          </>
+        )}
+      </div>
+      <div
+        ref={containerRef}
+        className={`w-full ${isFullscreen ? "fixed inset-0 z-50" : ""}`}
+        style={
+          isFullscreen
+            ? { minHeight: "100vh", background: Palette.parchment }
+            : { minHeight: 440 }
+        }
+      >
+        {isFullscreen && (
+          <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+            <button
+              onClick={handleExportPNG}
+              disabled={exporting}
+              className="px-4 py-2 text-sm bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+            >
+              {exporting ? "导出中..." : "📥 导出 PNG"}
+            </button>
+            <button
+              onClick={() => setIsFullscreen(false)}
+              className="px-4 py-2 text-sm bg-[#3b3325] text-[#f3ecd8] rounded-xl shadow-sm hover:bg-[#5c5240] transition-colors"
+            >
+              ✕ 退出全屏
+            </button>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

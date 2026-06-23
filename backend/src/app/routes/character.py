@@ -138,6 +138,6 @@ async def preview_character(
     return {
         "character_name": contour.get("name"),
         "user_message": preview.message,
-        "response": f"[{contour.get('name', '?')}] 以{demeanor.get('speech_style', '一贯')}的方式说: 我听到了你说'{preview.message}'，但我还在开发中...",
+        "response": f"[{contour.get('name', '?')}] 以{demeanor.get('speech_style', '一贯') or "一贯"}的方式说: 我听到了你说'{preview.message}'",
         "mode": "mock",
     }

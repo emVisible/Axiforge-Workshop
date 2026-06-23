@@ -19,7 +19,7 @@ class DraftManager {
       const entry: DraftEntry = {
         id: draftId,
         characterId: meta?.characterId,
-        name: meta?.name || data?.contour?.name || data?.anchor?.essence || '未命名',
+        name: meta?.name || data?.anchor?.name || data?.anchor?.essence || '未命名',
         updatedAt: Date.now(),
       };
       if (existing) Object.assign(existing, entry);

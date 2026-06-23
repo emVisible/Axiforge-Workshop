@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 from datetime import datetime
@@ -7,7 +7,6 @@ from .tag import TagResponse
 
 # 六层结构保持不变
 class Contour(BaseModel):
-    name: str = Field("")
     appearance: Optional[str] = Field(None)
     age_era: Optional[str] = Field(None)
     identity: Optional[str] = Field(None)
@@ -29,7 +28,9 @@ class Psyche(BaseModel):
 
 
 class Anchor(BaseModel):
-    essence: str = Field("")
+    essence: str = Field("", description="一句话本质概括")
+    name: str = Field("", description="姓名/称谓")
+    tags: List[str] = Field(default_factory=list, description="标签")
     theme: Optional[str] = Field(None)
     core_belief: Optional[str] = Field(None)
 
@@ -59,13 +60,13 @@ class CharacterData(BaseModel):
 class CharacterCreate(BaseModel):
     character_data: CharacterData
     is_public: bool = False
-    tag_names: List[str] = Field(default_factory=list)
+    image_path: Optional[str] = None
 
 
 class CharacterUpdate(BaseModel):
     character_data: Optional[CharacterData] = None
     is_public: Optional[bool] = None
-    tag_names: Optional[List[str]] = None
+    image_path: Optional[str] = None
 
 
 class CharacterResponse(BaseModel):
@@ -78,6 +79,7 @@ class CharacterResponse(BaseModel):
     fork_from: Optional[UUID] = None
     created_at: datetime
     updated_at: datetime
+    image_path: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -1,15 +1,3 @@
-// ============================================
-// 六层数据结构
-// ============================================
-
-export interface Contour {
-  name: string;
-  appearance?: string;
-  age_era?: string;
-  identity?: string;
-  first_impression?: string;
-}
-
 export interface Demeanor {
   speech_style?: string;
   habits?: string;
@@ -23,12 +11,21 @@ export interface Psyche {
   conflict?: string;
   self_perception?: string;
 }
+export interface Contour {
+  appearance?: string;
+  age_era?: string;
+  identity?: string;
+  first_impression?: string;
+}
 
 export interface Anchor {
   essence: string;
+  name: string;
+  tags: string[];
   theme?: string;
   core_belief?: string;
 }
+
 
 export interface Trace {
   background?: string;
@@ -99,23 +96,23 @@ export interface Character {
   author_id: string;
   character_data: CharacterData;
   is_public: boolean;
-  tags: Tag[];  // 改为 Tag 对象数组
+  tags: Tag[];
+  image_path?: string;
   fork_from: string | null;
   created_at: string;
   updated_at: string;
 }
 
-
 export interface CharacterCreate {
   character_data: CharacterData;
   is_public: boolean;
-  tag_names: string[];
+  image_path?: string;
 }
 
 export interface CharacterUpdate {
   character_data?: CharacterData;
   is_public?: boolean;
-  tag_names?: string[];
+  image_path?: string;
 }
 export interface CharacterSearchResult {
   items: Character[];

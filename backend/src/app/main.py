@@ -1,10 +1,16 @@
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import init_db
 from .routes import character_router
 from .routes.tag import router as tag_router
 from .routes.relation import router as relation_router
+from .routes.version import router as version_router
+from .routes.upload import router as upload_router
+from .config import settings
+
+from pathlib import Path
 
 app = FastAPI(
     title="Axiforge Workshop",
@@ -21,9 +27,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount(
+    "/uploads", StaticFiles(directory=str(Path(settings.upload_dir))), name="uploads"
+)
+app.include_router(version_router)
 app.include_router(character_router)
 app.include_router(tag_router)
 app.include_router(relation_router)
+app.include_router(upload_router)
 
 
 @app.on_event("startup")

@@ -8,3 +8,4 @@ export { default as EmptyState } from './EmptyState';
 export { default as Skeleton } from './Skeleton';
 export { default as DraftIndicator } from './DraftIndicator';
 export { default as DraftRestoreDialog } from './DraftRestoreDialog';
+export { default as ImageUpload } from './ImageUpload';

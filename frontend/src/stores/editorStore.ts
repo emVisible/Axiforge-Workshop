@@ -3,14 +3,13 @@ import type { CharacterData } from '@/types/character';
 import { draftManager } from '@/lib/draftManager';
 
 export const emptyCharacterData: CharacterData = {
-  contour: { name: '', appearance: '', age_era: '', identity: '', first_impression: '' },
+  contour: { appearance: '', age_era: '', identity: '', first_impression: '' },
   demeanor: { speech_style: '', habits: '', typical_reaction: '', expressiveness: '' },
   psyche: { desire: '', fear: '', conflict: '', self_perception: '' },
-  anchor: { essence: '', theme: '', core_belief: '' },
+  anchor: { essence: '', name: '', tags: [], theme: '', core_belief: '' },
   trace: { background: '', key_events: [], turning_point: '' },
   bond: { attitude_to_others: '', intimate_pattern: '', hostile_pattern: '', group_role: '' },
 };
-
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface EditorState {

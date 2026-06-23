@@ -7,7 +7,7 @@ interface CharacterCardProps {
 
 export default function CharacterCard({ character }: CharacterCardProps) {
   const { contour, anchor, demeanor } = character.character_data;
-  const displayName = character.name || contour?.name || "未命名角色";
+  const displayName = character.name || anchor?.name || "未命名角色";
 
   return (
     <Link
@@ -15,9 +15,17 @@ export default function CharacterCard({ character }: CharacterCardProps) {
       className="block bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all duration-300 hover:border-gray-200 group"
     >
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-11 h-11 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-lg group-hover:scale-105 transition-transform flex-shrink-0">
-          {displayName[0] || "?"}
-        </div>
+        {character.image_path ? (
+          <img
+            src={character.image_path}
+            alt=""
+            className="w-11 h-11 rounded-xl object-cover flex-shrink-0 group-hover:scale-105 transition-transform"
+          />
+        ) : (
+          <div className="w-11 h-11 bg-gradient-to-br from-blue-400 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-lg flex-shrink-0 group-hover:scale-105 transition-transform">
+            {displayName[0] || "?"}
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <h3 className="font-semibold text-gray-900 truncate text-sm">
             {displayName}
@@ -35,7 +43,7 @@ export default function CharacterCard({ character }: CharacterCardProps) {
       </p>
 
       <div className="flex flex-wrap gap-1">
-        {character.tags.map((tag) => (
+        {character.tags.slice(0, 3).map((tag) => (
           <span
             key={tag.id}
             className="px-2 py-0.5 text-[11px] font-medium rounded-full border"
@@ -48,6 +56,11 @@ export default function CharacterCard({ character }: CharacterCardProps) {
             {tag.name}
           </span>
         ))}
+        {character.tags.length > 3 && (
+          <span className="px-2 py-0.5 text-[11px] text-gray-400 bg-gray-50 rounded-full border border-gray-200">
+            +{character.tags.length - 3}
+          </span>
+        )}
         <span
           className={`px-2 py-0.5 text-[11px] rounded-full border ${
             character.is_public

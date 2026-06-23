@@ -9,16 +9,30 @@ import {
   Button,
 } from "@/components/ui";
 
+const PAGE_SIZE = 12;
+const MAX_VISIBLE_TAGS = 15;
+
 export default function HallPage() {
   const [search, setSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [sort, setSort] = useState<"recent" | "popular">("recent");
+  const [page, setPage] = useState(0);
+  const [allCharacters, setAllCharacters] = useState<any[]>([]);
+  const [showAllTags, setShowAllTags] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
     return () => clearTimeout(timer);
   }, [search]);
+
+  // 筛选条件变化时重置页码和列表
+  useEffect(() => {
+    setPage(0);
+    setAllCharacters([]);
+  }, [debouncedSearch, selectedTags, sort]);
+
+  const skip = page * PAGE_SIZE;
 
   const {
     data: result,
@@ -28,7 +42,20 @@ export default function HallPage() {
     search: debouncedSearch || undefined,
     tags: selectedTags.length > 0 ? selectedTags.join(",") : undefined,
     sort,
+    skip,
+    limit: PAGE_SIZE,
   });
+
+  // 追加数据
+  useEffect(() => {
+    if (result) {
+      if (page === 0) {
+        setAllCharacters(result.items);
+      } else {
+        setAllCharacters((prev) => [...prev, ...result.items]);
+      }
+    }
+  }, [result, page]);
 
   const { data: allTags } = useTags("usage");
 
@@ -47,6 +74,12 @@ export default function HallPage() {
   };
 
   const hasFilters = search || selectedTags.length > 0;
+  const hasMore = result ? skip + PAGE_SIZE < result.total : false;
+  const visibleTags = allTags || [];
+  const displayTags = showAllTags
+    ? visibleTags
+    : visibleTags.slice(0, MAX_VISIBLE_TAGS);
+  const hiddenCount = visibleTags.length - MAX_VISIBLE_TAGS;
 
   return (
     <div className="animate-fadeIn">
@@ -126,32 +159,50 @@ export default function HallPage() {
           </div>
         </div>
 
-        {allTags && allTags.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {allTags.map((tag) => (
-              <button
-                key={tag.id}
-                onClick={() => toggleTag(tag.name)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 ${
-                  selectedTags.includes(tag.name)
-                    ? "shadow-sm scale-105"
-                    : "hover:scale-105 opacity-70 hover:opacity-100"
-                }`}
-                style={{
-                  color: selectedTags.includes(tag.name) ? "#fff" : tag.color,
-                  borderColor: tag.color + "40",
-                  backgroundColor: selectedTags.includes(tag.name)
-                    ? tag.color
-                    : tag.color + "10",
-                }}
-              >
-                {tag.name}
-                {tag.usage_count > 0 && (
-                  <span className="ml-1 opacity-60">{tag.usage_count}</span>
-                )}
-              </button>
-            ))}
-          </div>
+        {visibleTags.length > 0 ? (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {displayTags.map((tag) => (
+                <button
+                  key={tag.id}
+                  onClick={() => toggleTag(tag.name)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 ${
+                    selectedTags.includes(tag.name)
+                      ? "shadow-sm scale-105"
+                      : "hover:scale-105 opacity-70 hover:opacity-100"
+                  }`}
+                  style={{
+                    color: selectedTags.includes(tag.name) ? "#fff" : tag.color,
+                    borderColor: tag.color + "40",
+                    backgroundColor: selectedTags.includes(tag.name)
+                      ? tag.color
+                      : tag.color + "10",
+                  }}
+                >
+                  {tag.name}
+                  {tag.usage_count > 0 && (
+                    <span className="ml-1 opacity-60">{tag.usage_count}</span>
+                  )}
+                </button>
+              ))}
+              {hiddenCount > 0 && !showAllTags && (
+                <button
+                  onClick={() => setShowAllTags(true)}
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  +{hiddenCount} 更多
+                </button>
+              )}
+              {showAllTags && hiddenCount > 0 && (
+                <button
+                  onClick={() => setShowAllTags(false)}
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  收起
+                </button>
+              )}
+            </div>
+          </>
         ) : (
           <p className="text-xs text-gray-300">
             还没有标签，创建角色时添加标签吧
@@ -160,7 +211,7 @@ export default function HallPage() {
       </div>
 
       {/* 角色列表 */}
-      {isLoading && <LoadingSpinner />}
+      {isLoading && page === 0 && <LoadingSpinner />}
 
       {error && (
         <ErrorDisplay
@@ -169,7 +220,7 @@ export default function HallPage() {
         />
       )}
 
-      {result && result.items.length === 0 && (
+      {result && allCharacters.length === 0 && (
         <EmptyState
           title={hasFilters ? "没有匹配的角色" : "大厅空空如也"}
           description={
@@ -181,8 +232,25 @@ export default function HallPage() {
         />
       )}
 
-      {result && result.items.length > 0 && (
-        <CharacterGrid characters={result.items} />
+      {allCharacters.length > 0 && (
+        <>
+          <CharacterGrid characters={allCharacters} />
+
+          {/* 加载更多 */}
+          <div className="mt-8 text-center">
+            {isLoading && page > 0 && <LoadingSpinner />}
+            {hasMore && !isLoading && (
+              <Button variant="secondary" onClick={() => setPage((p) => p + 1)}>
+                加载更多（{result!.total - (skip + PAGE_SIZE)} 个剩余）
+              </Button>
+            )}
+            {!hasMore && allCharacters.length > 0 && (
+              <p className="text-sm text-gray-300">
+                已显示全部 {result?.total} 个角色
+              </p>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

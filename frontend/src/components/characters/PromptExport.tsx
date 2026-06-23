@@ -10,13 +10,17 @@ import Button from "@/components/ui/Button";
 interface PromptExportProps {
   characterData: CharacterData;
   characterName: string;
+  characterId?: string;
+  tags?: { name: string }[];
 }
 
-type ExportMode = "system" | "full-plain" | "full-markdown";
+type ExportMode = "system" | "full-plain" | "full-markdown" | "json";
 
 export default function PromptExport({
   characterData,
   characterName,
+  characterId,
+  tags,
 }: PromptExportProps) {
   const [mode, setMode] = useState<ExportMode>("system");
   const [copied, setCopied] = useState(false);
@@ -29,6 +33,17 @@ export default function PromptExport({
         return renderCharacterPrompt(characterData, "plain");
       case "full-markdown":
         return renderCharacterPrompt(characterData, "markdown");
+      case "json":
+        return JSON.stringify(
+          {
+            name: characterName,
+            id: characterId,
+            tags: tags?.map((t) => t.name) || [],
+            character_data: characterData,
+          },
+          null,
+          2,
+        );
     }
   };
 
@@ -38,35 +53,40 @@ export default function PromptExport({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleDownload = () => {
+    const content = getContent();
+    const ext =
+      mode === "json" ? "json" : mode === "full-markdown" ? "md" : "txt";
+    const blob = new Blob([content], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.download = `${characterName || "character"}.${ext}`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
   const content = getContent();
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-wrap">
         {[
-          {
-            key: "system" as const,
-            label: "System Prompt",
-            desc: "直接注入LLM",
-          },
-          { key: "full-plain" as const, label: "完整纯文本", desc: "阅读友好" },
-          {
-            key: "full-markdown" as const,
-            label: "完整 Markdown",
-            desc: "文档格式",
-          },
+          { key: "system" as const, label: "System", desc: "注入LLM" },
+          { key: "full-plain" as const, label: "纯文本", desc: "阅读" },
+          { key: "full-markdown" as const, label: "Markdown", desc: "文档" },
+          { key: "json" as const, label: "JSON", desc: "结构化" },
         ].map(({ key, label, desc }) => (
           <button
             key={key}
             onClick={() => setMode(key)}
-            className={`flex-1 p-3 rounded-xl border-2 text-left transition-all ${
+            className={`px-4 py-2 rounded-xl border-2 text-sm transition-all ${
               mode === key
                 ? "border-blue-500 bg-blue-50"
                 : "border-gray-200 hover:border-gray-300"
             }`}
           >
-            <div className="text-sm font-medium">{label}</div>
-            <div className="text-xs text-gray-400 mt-0.5">{desc}</div>
+            <span className="font-medium">{label}</span>
+            <span className="text-xs text-gray-400 ml-1">{desc}</span>
           </button>
         ))}
       </div>
@@ -77,9 +97,14 @@ export default function PromptExport({
 
       <div className="flex items-center justify-between text-xs text-gray-400">
         <span>{content.split("\n").length} 行</span>
-        <Button size="sm" onClick={handleCopy} icon={copied ? "✓" : "📋"}>
-          {copied ? "已复制" : "复制"}
-        </Button>
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" onClick={handleDownload}>
+            📥 下载
+          </Button>
+          <Button size="sm" onClick={handleCopy} icon={copied ? "✓" : "📋"}>
+            {copied ? "已复制" : "复制"}
+          </Button>
+        </div>
       </div>
     </div>
   );
