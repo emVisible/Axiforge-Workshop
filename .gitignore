@@ -76,6 +76,7 @@ Thumbs.db
 # Python
 *.log
 logs/
+uploads/*
 
 # Frontend
 frontend/dist/
