@@ -103,7 +103,7 @@ export default function MyCharactersPage() {
 
       {visible.length > 0 && (
         <>
-          <CharacterGrid characters={visible} />
+          <CharacterGrid characters={visible} showStatus/>
           <div className="mt-8 text-center">
             {hasMore && (
               <Button

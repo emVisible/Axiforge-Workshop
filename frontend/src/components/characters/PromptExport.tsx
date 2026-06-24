@@ -1,10 +1,11 @@
 import { useState } from "react";
-import type { CharacterData } from "@/types/character";
+import type { CharacterData, ExportOptions } from "@/types/character";
 import {
   renderCharacterPrompt,
   renderSystemPrompt,
   type PromptFormat,
 } from "@/lib/promptRenderer";
+import { characterApi } from "@/api/characters";
 import Button from "@/components/ui/Button";
 
 interface PromptExportProps {
@@ -23,38 +24,69 @@ export default function PromptExport({
   tags,
 }: PromptExportProps) {
   const [mode, setMode] = useState<ExportMode>("system");
+  const [includeStories, setIncludeStories] = useState(false);
+  const [includeRelations, setIncludeRelations] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const getContent = (): string => {
-    switch (mode) {
-      case "system":
-        return renderSystemPrompt(characterData);
-      case "full-plain":
-        return renderCharacterPrompt(characterData, "plain");
-      case "full-markdown":
-        return renderCharacterPrompt(characterData, "markdown");
-      case "json":
-        return JSON.stringify(
-          {
-            name: characterName,
-            id: characterId,
-            tags: tags?.map((t) => t.name) || [],
-            character_data: characterData,
-          },
-          null,
-          2,
+  const handleExport = async () => {
+    if (!characterId) return;
+    setLoading(true);
+    try {
+      const data = await characterApi.export(characterId, {
+        format:
+          mode === "system"
+            ? "system"
+            : mode === "json"
+              ? "json"
+              : mode === "full-markdown"
+                ? "markdown"
+                : "plain",
+        include_stories: includeStories,
+        include_relations: includeRelations,
+      });
+
+      // 根据格式生成内容
+      if (mode === "json") {
+        setContent(JSON.stringify(data, null, 2));
+      } else if (mode === "system") {
+        setContent(renderSystemPrompt(characterData));
+      } else {
+        let text = renderCharacterPrompt(
+          characterData,
+          mode === "full-markdown" ? "markdown" : "plain",
         );
+        if (data.stories) {
+          text += "\n\n## 传记\n\n";
+          data.stories.forEach((s: any) => {
+            text += `### ${s.title}\n\n${s.content}\n\n`;
+          });
+        }
+        if (data.relations) {
+          text += "\n## 关系\n\n";
+          data.relations.forEach((r: any) => {
+            text += `- ${r.relation_name}: ${r.target_name}\n`;
+          });
+        }
+        setContent(text);
+      }
+    } catch (e) {
+      setContent("导出失败");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(getContent());
+    if (!content) return;
+    await navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleDownload = () => {
-    const content = getContent();
+    if (!content) return;
     const ext =
       mode === "json" ? "json" : mode === "full-markdown" ? "md" : "txt";
     const blob = new Blob([content], { type: "text/plain" });
@@ -65,10 +97,9 @@ export default function PromptExport({
     URL.revokeObjectURL(link.href);
   };
 
-  const content = getContent();
-
   return (
     <div className="space-y-4">
+      {/* 格式选择 */}
       <div className="flex gap-2 flex-wrap">
         {[
           { key: "system" as const, label: "System", desc: "注入LLM" },
@@ -78,7 +109,10 @@ export default function PromptExport({
         ].map(({ key, label, desc }) => (
           <button
             key={key}
-            onClick={() => setMode(key)}
+            onClick={() => {
+              setMode(key);
+              setContent("");
+            }}
             className={`px-4 py-2 rounded-xl border-2 text-sm transition-all ${
               mode === key
                 ? "border-blue-500 bg-blue-50"
@@ -91,21 +125,61 @@ export default function PromptExport({
         ))}
       </div>
 
-      <pre className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">
-        {content}
-      </pre>
-
-      <div className="flex items-center justify-between text-xs text-gray-400">
-        <span>{content.split("\n").length} 行</span>
-        <div className="flex gap-2">
-          <Button size="sm" variant="secondary" onClick={handleDownload}>
-            📥 下载
-          </Button>
-          <Button size="sm" onClick={handleCopy} icon={copied ? "✓" : "📋"}>
-            {copied ? "已复制" : "复制"}
-          </Button>
-        </div>
+      {/* 包含选项 */}
+      <div className="flex items-center gap-6">
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeStories}
+            onChange={(e) => {
+              setIncludeStories(e.target.checked);
+              setContent("");
+            }}
+            className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+          />
+          包含传记
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={includeRelations}
+            onChange={(e) => {
+              setIncludeRelations(e.target.checked);
+              setContent("");
+            }}
+            className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+          />
+          包含关系
+        </label>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={handleExport}
+          loading={loading}
+        >
+          生成预览
+        </Button>
       </div>
+
+      {/* 预览 */}
+      {content && (
+        <>
+          <pre className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">
+            {content}
+          </pre>
+          <div className="flex items-center justify-between text-xs text-gray-400">
+            <span>{content.split("\n").length} 行</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="secondary" onClick={handleDownload}>
+                📥 下载
+              </Button>
+              <Button size="sm" onClick={handleCopy} icon={copied ? "✓" : "📋"}>
+                {copied ? "已复制" : "复制"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

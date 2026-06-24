@@ -1,39 +1,66 @@
+import { useState } from "react";
 import { useForkChain } from "@/hooks/useCharacters";
 import { Link } from "react-router";
 
-interface ForkChainProps {
+interface Props {
   characterId: string;
 }
 
-export default function ForkChain({ characterId }: ForkChainProps) {
+export default function ForkChain({ characterId }: Props) {
   const { data: chain, isLoading } = useForkChain(characterId);
+  const [expanded, setExpanded] = useState(false);
 
   if (isLoading) return null;
   if (!chain || chain.total_forks === 0) return null;
 
+  const displayChain = expanded ? chain.chain : chain.chain.slice(0, 3);
+
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
-      <div className="flex items-center gap-2 mb-2 text-xs text-gray-400">
-        <span>🔀 Fork 链</span>
-        <span>({chain.total_forks} 个分支)</span>
-      </div>
-      <div className="flex items-center gap-2 flex-wrap">
-        {chain.chain.map((item, index) => (
-          <div key={item.id} className="flex items-center gap-2">
-            {index > 0 && <span className="text-gray-300">→</span>}
+    <>
+      <span className="text-gray-200">·</span>
+      <span className="flex items-center gap-1 flex-wrap min-w-0">
+        {displayChain.map((item, i) => (
+          <span key={item.id} className="flex items-center gap-1">
+            {i > 0 && (
+              <svg
+                className="w-3 h-3 text-gray-300 flex-shrink-0"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            )}
             <Link
               to={`/characters/${item.id}`}
-              className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
-                item.is_current
-                  ? "bg-blue-100 text-blue-700 font-medium"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-              }`}
+              className={`hover:text-blue-500 transition-colors truncate max-w-[100px] ${item.is_current ? "text-gray-700 font-medium" : "text-gray-400"}`}
             >
               {item.name}
             </Link>
-          </div>
+          </span>
         ))}
-      </div>
-    </div>
+        {!expanded && chain.chain.length > 3 && (
+          <button
+            onClick={() => setExpanded(true)}
+            className="text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0"
+          >
+            +{chain.chain.length - 3}
+          </button>
+        )}
+        {expanded && chain.chain.length > 3 && (
+          <button
+            onClick={() => setExpanded(false)}
+            className="text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0"
+          >
+            收起
+          </button>
+        )}
+      </span>
+    </>
   );
 }

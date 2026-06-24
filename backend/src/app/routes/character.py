@@ -8,12 +8,12 @@ from ..database import get_db
 from ..schemas.character import (
     CharacterCreate,
     CharacterForkRequest,
-    CharacterPreviewRequest,
     CharacterResponse,
     CharacterSearchResponse,
     CharacterUpdate,
 )
 from ..services.character import CharacterService
+from ..schemas.character import CharacterExportRequest
 
 router = APIRouter(prefix="/api/v1/characters", tags=["characters"])
 
@@ -120,10 +120,10 @@ async def get_fork_chain(character_id: UUID, db: AsyncSession = Depends(get_db))
     }
 
 
-@router.post("/{character_id}/preview")
-async def preview_character(
+@router.post("/{character_id}/export")
+async def export_character(
     character_id: UUID,
-    preview: CharacterPreviewRequest,
+    request: CharacterExportRequest = CharacterExportRequest(),
     db: AsyncSession = Depends(get_db),
 ):
     service = CharacterService(db)
@@ -131,13 +131,27 @@ async def preview_character(
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
 
-    cd = character.character_data
-    contour = cd.get("contour", {})
-    demeanor = cd.get("demeanor", {})
-
-    return {
-        "character_name": contour.get("name"),
-        "user_message": preview.message,
-        "response": f"[{contour.get('name', '?')}] 以{demeanor.get('speech_style', '一贯') or "一贯"}的方式说: 我听到了你说'{preview.message}'",
-        "mode": "mock",
+    result = {
+        "character_data": character.character_data,
+        "name": character.name,
+        "tags": [t.name for t in character.tags] if character.tags else [],
     }
+
+    if request.include_stories:
+        from ..services.story import StoryService
+
+        story_service = StoryService(db)
+        stories = await story_service.get_stories(character_id)
+        result["stories"] = [
+            {"title": s.title, "content": s.content, "word_count": s.word_count}
+            for s in stories
+        ]
+
+    if request.include_relations:
+        from ..services.relation import RelationService
+
+        relation_service = RelationService(db)
+        relations = await relation_service.get_relations_for_character(character_id)
+        result["relations"] = relations
+
+    return result

@@ -22,16 +22,19 @@ export function renderCharacterPrompt(data: CharacterData, format: PromptFormat 
   const { contour, demeanor, psyche, anchor, trace, bond } = data;
   let prompt = '';
 
-  // 锚点（最重要，放最前）
-  if (anchor?.essence) {
-    prompt += section('本质', anchor.essence, format);
-    prompt += field('人生主题', anchor.theme, format);
-    prompt += field('核心信念', anchor.core_belief, format);
-  }
+  // 锚点
+  const anchorFields = [
+    field('姓名', anchor?.name, format),
+    field('概括', anchor?.essence, format),
+    field('描述', anchor?.summary, format),
+    anchor?.tags?.length ? field('标签', anchor.tags.join('、'), format) : '',
+    field('人生主题', anchor?.theme, format),
+    field('核心信念', anchor?.core_belief, format),
+  ].join('');
+  prompt += section('锚点', anchorFields, format);
 
   // 轮廓
   const contourFields = [
-    field('姓名', contour?.name, format),
     field('外貌', contour?.appearance, format),
     field('年龄/时代', contour?.age_era, format),
     field('身份', contour?.identity, format),
@@ -79,17 +82,22 @@ export function renderCharacterPrompt(data: CharacterData, format: PromptFormat 
 
 export function renderSystemPrompt(data: CharacterData): string {
   const { contour, anchor, demeanor, psyche } = data;
-  const name = contour?.name || '角色';
+  const name = anchor?.name || '角色';
 
   return [
     `你是${name}。`,
-    anchor?.essence ? `\n本质：${anchor.essence}` : '',
+    anchor?.essence ? `\n概括：${anchor.essence}` : '',
+    anchor?.summary ? `\n描述：${anchor.summary}` : '',
+    anchor?.tags?.length ? `\n标签：${anchor.tags.join('、')}` : '',
+    anchor?.theme ? `\n人生主题：${anchor.theme}` : '',
+    anchor?.core_belief ? `\n核心信念：${anchor.core_belief}` : '',
+    contour?.first_impression ? `\n第一印象：${contour.first_impression}` : '',
     demeanor?.speech_style ? `\n说话方式：${demeanor.speech_style}` : '',
-    psyche?.desire ? `\n你真正想要的是：${psyche.desire}` : '',
-    psyche?.fear ? `\n你最害怕的是：${psyche.fear}` : '',
-    psyche?.conflict ? `\n你的内心矛盾：${psyche.conflict}` : '',
-    anchor?.core_belief ? `\n你坚信：${anchor.core_belief}` : '',
-    demeanor?.habits ? `\n你的习惯：${demeanor.habits}` : '',
+    demeanor?.habits ? `\n习惯：${demeanor.habits}` : '',
+    psyche?.desire ? `\n深层欲望：${psyche.desire}` : '',
+    psyche?.fear ? `\n核心恐惧：${psyche.fear}` : '',
+    psyche?.conflict ? `\n内在矛盾：${psyche.conflict}` : '',
+    psyche?.self_perception ? `\n自我认知：${psyche.self_perception}` : '',
     '\n请始终以上述设定进行对话，不要跳出角色。',
   ].filter(Boolean).join('');
 }

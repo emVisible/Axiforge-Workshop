@@ -1,7 +1,9 @@
 import { apiClient } from './client';
 import type {
-  Character, CharacterCreate, CharacterUpdate, PreviewResponse,
+  Character, CharacterCreate, CharacterUpdate,
   ForkRequest, ForkChain, CharacterSearchResult,
+  ExportOptions,
+  ExportResult,
 } from '@/types/character';
 
 export const characterApi = {
@@ -31,9 +33,6 @@ export const characterApi = {
   getForkChain: (id: string) =>
     apiClient.get<ForkChain>(`/characters/${id}/fork-chain`),
 
-  preview: (id: string, message: string) =>
-    apiClient.post<PreviewResponse>(`/characters/${id}/preview`, {
-      character_id: id,
-      message,
-    }),
+  export: (characterId: string, options: ExportOptions) =>
+    apiClient.post<ExportResult>(`/characters/${characterId}/export`, options),
 };

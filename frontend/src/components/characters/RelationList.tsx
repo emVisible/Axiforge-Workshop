@@ -1,6 +1,5 @@
 import { Link } from "react-router";
 import { useRelations, useDeleteRelation } from "@/hooks/useRelations";
-import Button from "@/components/ui/Button";
 
 interface RelationListProps {
   characterId: string;
@@ -12,13 +11,20 @@ export default function RelationList({ characterId }: RelationListProps) {
 
   if (isLoading) return <p className="text-sm text-gray-400 py-4">加载中...</p>;
   if (!relations || relations.length === 0) {
-    return <p className="text-sm text-gray-400 py-4">暂无关系，添加角色之间的关联吧</p>;
+    return (
+      <p className="text-sm text-gray-400 py-4">
+        暂无关系，添加角色之间的关联吧
+      </p>
+    );
   }
 
   return (
     <div className="space-y-2">
       {relations.map((r) => (
-        <div key={r.id} className="flex items-center justify-between py-2.5 px-4 bg-gray-50 rounded-xl group">
+        <div
+          key={r.id}
+          className="flex items-center justify-between py-2.5 px-4 bg-gray-50 rounded-xl group"
+        >
           <div className="flex items-center gap-3 min-w-0">
             <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded-full border border-gray-200 flex-shrink-0">
               {r.relation_name}
@@ -32,7 +38,9 @@ export default function RelationList({ characterId }: RelationListProps) {
               {r.target_name}
             </Link>
             {r.target_essence && (
-              <span className="text-xs text-gray-400 truncate hidden sm:inline">{r.target_essence}</span>
+              <span className="text-xs text-gray-400 truncate hidden sm:inline">
+                {r.target_essence}
+              </span>
             )}
           </div>
           <button

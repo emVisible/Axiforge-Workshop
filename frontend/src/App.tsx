@@ -8,6 +8,10 @@ import CharacterDetailPage from "@/pages/CharacterDetailPage";
 import EditCharacterPage from "@/pages/EditCharacterPage";
 import MyCharactersPage from "@/pages/MyCharactersPage";
 import NotFoundPage from "@/pages/NotFoundPage";
+import StoryReadPage from "@/pages/StoryReadPage";
+import StoryEditPage from "@/pages/StoryEditPage";
+
+// 在 Routes 里加
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,6 +46,14 @@ export default function App() {
 
             {/* 编辑角色 */}
             <Route path="characters/:id/edit" element={<EditCharacterPage />} />
+            <Route
+              path="characters/:id/stories/:storyId"
+              element={<StoryReadPage />}
+            />
+            <Route
+              path="characters/:id/stories/:storyId/edit"
+              element={<StoryEditPage />}
+            />
 
             {/* 404 */}
             <Route path="*" element={<NotFoundPage />} />

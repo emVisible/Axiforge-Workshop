@@ -18,8 +18,7 @@ export default function AnchorEditor() {
   return (
     <div className="space-y-5">
       <p className="text-sm text-gray-400">
-        锚点是角色的核心——名字、本质、标签都在这里。
-        <span className="text-red-400">*</span> 为必填
+        锚点是角色的核心。<span className="text-red-400">*</span> 为必填
       </p>
 
       <Input
@@ -31,12 +30,19 @@ export default function AnchorEditor() {
       />
 
       <Textarea
-        label="本质概括"
+        label="概括"
         required
         value={draft.anchor.essence}
         onChange={(e) => updateField("anchor.essence", e.target.value)}
-        placeholder="一句话概括——「用愤怒掩饰悲伤的守护者」*"
+        placeholder="一句话概括——「傲娇学妹」「陨落的英雄」*"
         rows={2}
+      />
+      <Input
+        label="描述"
+        value={draft.anchor.summary || ""}
+        onChange={(e) => updateField("anchor.summary", e.target.value)}
+        placeholder="卡片上显示的描述，如「一个用愤怒掩饰悲伤的守护者」"
+        hint="显示在角色卡片正文区域"
       />
 
       <div>
@@ -64,12 +70,12 @@ export default function AnchorEditor() {
             <Badge
               key={i}
               variant="blue"
-              onRemove={() => {
+              onRemove={() =>
                 updateField(
                   "anchor.tags",
                   draft.anchor.tags.filter((_, j) => j !== i),
-                );
-              }}
+                )
+              }
             >
               {tag}
             </Badge>

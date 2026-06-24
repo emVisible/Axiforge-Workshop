@@ -1,23 +1,27 @@
 import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   useCharacter,
   useDeleteCharacter,
   useForkCharacter,
 } from "@/hooks/useCharacters";
-import { characterApi } from "@/api/characters";
 import { ErrorDisplay, Button } from "@/components/ui";
 import {
   ForkDialog,
   ForkChain,
-  PromptExport,
   RelationList,
   AddRelationDialog,
   RelationGraph,
 } from "@/components/characters";
-import type { PreviewResponse, CharacterData } from "@/types/character";
+import type { CharacterData } from "@/types/character";
 import Skeleton from "@/components/ui/Skeleton";
+import StoryList from "@/components/characters/StoryList";
+import CreateStoryDialog from "@/components/characters/CreateStoryDialog";
 import VersionPanel from "@/components/characters/VersionPanel";
+import { versionApi } from "@/api/versions";
+import { characterApi } from "@/api/characters";
+import { renderCharacterPrompt } from "@/lib/promptRenderer";
 
 const layerTabs = [
   {
@@ -60,7 +64,6 @@ const layerTabs = [
 
 const fieldLabels: Record<string, Record<string, string>> = {
   contour: {
-    name: "姓名",
     appearance: "外貌",
     age_era: "年龄/时代",
     identity: "身份",
@@ -78,7 +81,13 @@ const fieldLabels: Record<string, Record<string, string>> = {
     conflict: "内在矛盾",
     self_perception: "自我认知",
   },
-  anchor: { essence: "本质概括", theme: "人生主题", core_belief: "核心信念" },
+  anchor: {
+    name: "姓名",
+    summary: "描述",
+    essence: "概括",
+    theme: "主题",
+    core_belief: "信仰",
+  },
   trace: { background: "出身背景", turning_point: "转折点" },
   bond: {
     attitude_to_others: "对他人态度",
@@ -90,10 +99,8 @@ const fieldLabels: Record<string, Record<string, string>> = {
 
 const mainTabs = [
   { key: "info" as const, label: "📋 角色信息" },
-  { key: "preview" as const, label: "💬 对话预览" },
-  { key: "export" as const, label: "📤 导出" },
   { key: "relations" as const, label: "🕸️ 关系" },
-  { key: "versions" as const, label: "🕰️ 版本" },
+  { key: "stories" as const, label: "📖 传记" },
 ];
 
 export default function CharacterDetailPage() {
@@ -105,15 +112,66 @@ export default function CharacterDetailPage() {
 
   const [isForkOpen, setIsForkOpen] = useState(false);
   const [isAddRelationOpen, setIsAddRelationOpen] = useState(false);
+  const [isCreateStoryOpen, setIsCreateStoryOpen] = useState(false);
+  const [isVersionOpen, setIsVersionOpen] = useState(false);
   const [activeLayer, setActiveLayer] = useState("anchor");
-  const [activeTab, setActiveTab] = useState<
-    "info" | "preview" | "export" | "relations" | "versions"
-  >("info");
-  const [message, setMessage] = useState("");
-  const [previewResponse, setPreviewResponse] =
-    useState<PreviewResponse | null>(null);
-  const [isSending, setIsSending] = useState(false);
+  const [activeTab, setActiveTab] = useState<"info" | "relations" | "stories">(
+    "info",
+  );
   const [copiedId, setCopiedId] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [copiedText, setCopiedText] = useState(false);
+  const [copying, setCopying] = useState(false);
+
+  const { data: versions } = useQuery({
+    queryKey: ["versions", character?.id],
+    queryFn: () => versionApi.list(character!.id),
+    enabled: !!character,
+  });
+  const versionsCount = versions?.length || 0;
+  const goBack = () => navigate(-1);
+
+  const handleExportMarkdown = async () => {
+    if (!character) return;
+    setExporting(true);
+    try {
+      const data = await characterApi.export(character.id, {
+        format: "markdown",
+        include_stories: true,
+        include_relations: true,
+      });
+
+      let md = renderCharacterPrompt(
+        character.character_data as CharacterData,
+        "markdown",
+      );
+
+      if ((data as any).stories?.length) {
+        md += "\n\n## 传记\n\n";
+        (data as any).stories.forEach((s: any) => {
+          md += `### ${s.title}\n\n${s.content}\n\n`;
+        });
+      }
+      if ((data as any).relations?.length) {
+        md += "\n## 关系\n\n";
+        (data as any).relations.forEach((r: any) => {
+          md += `- ${r.relation_name}: ${r.target_name}\n`;
+        });
+      }
+
+      const blob = new Blob([md], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `${character.name || "character"}.md`;
+      a.href = url;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("导出失败", e);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -121,7 +179,7 @@ export default function CharacterDetailPage() {
         <Skeleton className="h-4 w-24" />
         <div className="bg-white rounded-2xl p-8 space-y-4">
           <div className="flex gap-6">
-            <Skeleton className="w-20 h-20 rounded-2xl" />
+            <Skeleton className="w-28 h-28 rounded-2xl" />
             <div className="flex-1 space-y-3">
               <Skeleton className="h-7 w-48" />
               <Skeleton className="h-4 w-64" />
@@ -169,20 +227,6 @@ export default function CharacterDetailPage() {
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  const handlePreview = async () => {
-    if (!message.trim()) return;
-    setIsSending(true);
-    try {
-      const response = await characterApi.preview(character.id, message);
-      setPreviewResponse(response);
-      setMessage("");
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSending(false);
-    }
-  };
-
   const renderLayerFields = (layerKey: string) => {
     const data = (cd as any)[layerKey];
     if (!data) return <p className="text-gray-400 text-sm">未设定</p>;
@@ -224,7 +268,6 @@ export default function CharacterDetailPage() {
     const filled = entries.filter(([_, v]) => v);
     if (filled.length === 0)
       return <p className="text-gray-400 text-sm">未设定</p>;
-
     return (
       <div className="space-y-3">
         {filled.map(([key, value]) => (
@@ -240,7 +283,6 @@ export default function CharacterDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto animate-fadeIn">
-      {/* 对话框 */}
       <ForkDialog
         character={character}
         isOpen={isForkOpen}
@@ -253,42 +295,162 @@ export default function CharacterDetailPage() {
         isOpen={isAddRelationOpen}
         onClose={() => setIsAddRelationOpen(false)}
       />
+      <CreateStoryDialog
+        isOpen={isCreateStoryOpen}
+        onClose={() => setIsCreateStoryOpen(false)}
+      />
 
-      {/* 面包屑 */}
+      {isVersionOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setIsVersionOpen(false)}
+          />
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6 animate-fadeIn">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900">版本历史</h2>
+              <button
+                onClick={() => setIsVersionOpen(false)}
+                className="text-gray-400 hover:text-gray-600 text-lg"
+              >
+                ✕
+              </button>
+            </div>
+            <VersionPanel characterId={character.id} />
+          </div>
+        </div>
+      )}
+
       <nav className="mb-6">
-        <Link
-          to="/hall"
+        <button
+          onClick={goBack}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
-          ← 大厅
-        </Link>
+          ← 返回
+        </button>
       </nav>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-6 group/card relative overflow-hidden">
+        <div className="absolute top-4 right-4 flex flex-col items-end gap-0.5 opacity-0 translate-x-2 group-hover/card:opacity-100 group-hover/card:translate-x-0 transition-all duration-300 ease-out z-10">
+          <button
+            onClick={() => setIsVersionOpen(true)}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100 whitespace-nowrap"
+          >
+            🕰️ {versionsCount} 个版本
+          </button>
+          <div className="h-px bg-gray-100 my-0.5 w-8" />
+          <Button
+            as="link"
+            to={`/characters/${character.id}/edit`}
+            variant="ghost"
+            size="sm"
+          >
+            ✏️ 编辑
+          </Button>
+          <Button onClick={() => setIsForkOpen(true)} variant="ghost" size="sm">
+            🔀 Fork
+          </Button>
+          <Button
+            onClick={handleDelete}
+            variant="ghost"
+            size="sm"
+            className="text-gray-400 hover:text-red-500"
+          >
+            🗑️ 删除
+          </Button>
+          <div className="h-px bg-gray-100 my-0.5 w-8" />
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                if (!character) return;
+                setCopying(true);
+                try {
+                  const data = await characterApi.export(character.id, {
+                    format: "markdown",
+                    include_stories: true,
+                    include_relations: true,
+                  });
+                  let md = renderCharacterPrompt(
+                    character.character_data as CharacterData,
+                    "markdown",
+                  );
+                  if ((data as any).stories?.length) {
+                    md += "\n\n## 传记\n\n";
+                    (data as any).stories.forEach((s: any) => {
+                      md += `### ${s.title}\n\n${s.content}\n\n`;
+                    });
+                  }
+                  if ((data as any).relations?.length) {
+                    md += "\n## 关系\n\n";
+                    (data as any).relations.forEach((r: any) => {
+                      md += `- ${r.relation_name}: ${r.target_name}\n`;
+                    });
+                  }
+                  try {
+                    await navigator.clipboard.writeText(md);
+                  } catch {
+                    const ta = document.createElement("textarea");
+                    ta.value = md;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                  }
+                  setCopiedText(true);
+                  setTimeout(() => setCopiedText(false), 2000);
+                } catch {
+                } finally {
+                  setCopying(false);
+                }
+              }}
+              disabled={copying}
+              className="text-xs text-gray-400 hover:text-blue-500 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+            >
+              {copying ? "..." : copiedText ? "✓" : "📋 设定复制"}
+            </button>
+            <button
+              onClick={handleExportMarkdown}
+              disabled={exporting}
+              className="text-xs text-gray-400 hover:text-blue-500 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+            >
+              {exporting ? "..." : "📥 设定导出"}
+            </button>
+          </div>
+        </div>
 
-      {/* Fork 链 */}
-      <ForkChain characterId={character.id} />
+        <div className="flex items-start gap-8">
+          <div className="group/img flex-shrink-0">
+            {character.image_path ? (
+              <img
+                src={character.image_path}
+                alt=""
+                className="w-28 h-28 rounded-2xl object-cover shadow-lg transition-transform duration-300 group-hover/img:scale-[1.05]"
+              />
+            ) : (
+              <div className="w-28 h-28 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-4xl shadow-lg shadow-purple-200 transition-transform duration-300 group-hover/img:scale-[1.05]">
+                {displayName[0]}
+              </div>
+            )}
+          </div>
 
-      {/* 头部卡片 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-6">
-        <div className="flex items-start gap-6">
-          {character.image_path ? (
-            <img
-              src={character.image_path}
-              alt=""
-              className="w-20 h-20 rounded-2xl object-cover flex-shrink-0 shadow-lg"
-            />
-          ) : (
-            <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-purple-200 flex-shrink-0">
-              {displayName[0]}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 self-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-1">
               {displayName}
             </h1>
             {cd?.anchor?.essence && (
-              <p className="text-gray-500 mb-3">{cd.anchor.essence}</p>
+              <p className="text-gray-500 mb-3 line-clamp-2">
+                {cd.anchor.essence}
+              </p>
             )}
-            <div className="flex flex-wrap gap-1.5 mb-3">
+
+            <div className="flex flex-wrap items-center gap-1.5 mb-4">
+              <span
+                className={`px-2.5 py-1 text-xs rounded-full border ${character.is_public ? "text-emerald-600 border-emerald-200 bg-emerald-50" : "text-gray-400 border-gray-200 bg-gray-50"}`}
+              >
+                {character.is_public ? "🌐 公开" : "🔒 私有"}
+              </span>
+              {character.tags.length > 0 && (
+                <span className="w-px h-4 bg-gray-200 mx-1" />
+              )}
               {character.tags.map((tag) => (
                 <span
                   key={tag.id}
@@ -302,101 +464,79 @@ export default function CharacterDetailPage() {
                   {tag.name}
                 </span>
               ))}
-              <span
-                className={`px-2.5 py-1 text-xs rounded-full border ${
-                  character.is_public
-                    ? "text-emerald-600 border-emerald-200 bg-emerald-50"
-                    : "text-gray-400 border-gray-200 bg-gray-50"
-                }`}
-              >
-                {character.is_public ? "🌐 公开" : "🔒 私有"}
-              </span>
             </div>
-            {/* 角色 ID */}
-            <div className="flex items-center gap-2">
-              <code className="text-xs text-gray-300 select-all bg-gray-50 px-2 py-0.5 rounded">
-                {character.id}
-              </code>
+
+            {/* Fork 来源 + Fork 链 */}
+            <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
               <button
                 onClick={handleCopyId}
-                className="text-xs text-gray-400 hover:text-blue-500 transition-colors flex-shrink-0"
+                className="flex items-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
               >
-                {copiedId ? "✓ 已复制" : "📋 复制ID"}
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+                {copiedId ? "✓ 已复制" : "复制 ID"}
               </button>
+              <span className="text-gray-200">·</span>
+              {character.fork_from ? (
+                <>
+                  <span>
+                    Fork 自{" "}
+                    <Link
+                      to={`/characters/${character.fork_from}`}
+                      className="text-blue-500 hover:text-blue-600"
+                    >
+                      原始角色
+                    </Link>
+                  </span>
+                  <ForkChain characterId={character.id} />
+                </>
+              ) : (
+                <span className="text-gray-300">原始角色</span>
+              )}
             </div>
           </div>
-
-          <div className="flex gap-2 flex-shrink-0">
-            <Button
-              as="link"
-              to={`/characters/${character.id}/edit`}
-              variant="secondary"
-              size="sm"
-            >
-              编辑
-            </Button>
-            <Button
-              onClick={() => setIsForkOpen(true)}
-              variant="secondary"
-              size="sm"
-            >
-              Fork
-            </Button>
-            <Button onClick={handleDelete} variant="danger" size="sm">
-              删除
-            </Button>
-          </div>
         </div>
-
-        {character.fork_from && (
-          <div className="mt-4 pt-4 border-t border-gray-50 text-sm text-gray-400">
-            Fork 自{" "}
-            <Link
-              to={`/characters/${character.fork_from}`}
-              className="text-blue-500 hover:text-blue-600"
-            >
-              原始角色
-            </Link>
-          </div>
-        )}
       </div>
 
-      {/* 主标签切换 */}
+      {/* Tab */}
       <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl">
         {mainTabs.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
-              activeTab === key
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
+            className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${activeTab === key ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {/* === 角色信息 === */}
+      {/* 角色信息 */}
       {activeTab === "info" && (
         <div className="space-y-6">
-          <div className="flex gap-2 flex-wrap">
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
             {layerTabs.map(({ key, label, icon, color }) => (
               <button
                 key={key}
                 onClick={() => setActiveLayer(key)}
-                className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border ${
-                  activeLayer === key
-                    ? color + " shadow-sm"
-                    : "border-gray-200 text-gray-500 hover:bg-gray-50"
-                }`}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 border text-center ${activeLayer === key ? color + " shadow-sm" : "border-gray-200 text-gray-500 hover:bg-gray-50"}`}
               >
-                {icon} {label}
+                <span className="block text-lg mb-0.5">{icon}</span>
+                <span className="text-xs">{label}</span>
               </button>
             ))}
           </div>
-
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 animate-fadeIn">
             <h2 className="text-lg font-semibold text-gray-900 mb-6">
               {layerTabs.find((l) => l.key === activeLayer)?.icon}{" "}
@@ -407,71 +547,7 @@ export default function CharacterDetailPage() {
         </div>
       )}
 
-      {/* === 对话预览 === */}
-      {activeTab === "preview" && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-2">对话预览</h2>
-          <p className="text-sm text-gray-400 mb-6">
-            测试角色对话（Mock 模式）
-          </p>
-
-          {previewResponse && (
-            <div className="bg-gray-50 rounded-xl p-4 mb-6 space-y-3 max-h-64 overflow-y-auto">
-              <div className="flex justify-end">
-                <div className="bg-blue-500 text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[70%] text-sm">
-                  {previewResponse.user_message}
-                </div>
-              </div>
-              <div className="flex justify-start">
-                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%] shadow-sm">
-                  <p className="text-xs text-gray-400 mb-1">
-                    {previewResponse.character_name}
-                  </p>
-                  <p className="text-sm text-gray-700">
-                    {previewResponse.response}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handlePreview()}
-              placeholder="输入消息..."
-              disabled={isSending}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none text-sm"
-            />
-            <Button
-              onClick={handlePreview}
-              disabled={isSending || !message.trim()}
-              size="md"
-            >
-              {isSending ? "..." : "发送"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* === 导出 === */}
-      {activeTab === "export" && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">
-            导出 Prompt
-          </h2>
-          <PromptExport
-            characterData={cd}
-            characterName={displayName}
-            characterId={character.id}
-            tags={character.tags}
-          />
-        </div>
-      )}
-
-      {/* === 关系 === */}
+      {/* 关系 */}
       {activeTab === "relations" && (
         <div className="space-y-6">
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
@@ -483,7 +559,6 @@ export default function CharacterDetailPage() {
             </div>
             <RelationGraph characterId={character.id} />
           </div>
-
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
               关系列表
@@ -492,14 +567,20 @@ export default function CharacterDetailPage() {
           </div>
         </div>
       )}
-      {activeTab === "versions" && (
+
+      {/* 传记 */}
+      {activeTab === "stories" && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">版本历史</h2>
-          <VersionPanel characterId={character.id} />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">人物传记</h2>
+            <Button size="sm" onClick={() => setIsCreateStoryOpen(true)}>
+              + 新建篇章
+            </Button>
+          </div>
+          <StoryList />
         </div>
       )}
 
-      {/* 元数据 */}
       <div className="mt-6 text-xs text-gray-300 flex justify-between">
         <span>
           创建于 {new Date(character.created_at).toLocaleDateString()}

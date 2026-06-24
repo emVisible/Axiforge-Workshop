@@ -3,7 +3,6 @@ from .character import (
     CharacterUpdate,
     CharacterResponse,
     CharacterForkRequest,
-    CharacterPreviewRequest,
     CharacterData,
     Contour,
     Demeanor,

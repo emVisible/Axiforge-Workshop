@@ -9,6 +9,7 @@ interface ButtonBaseProps {
   size?: ButtonSize;
   loading?: boolean;
   icon?: ReactNode;
+  className?: string;
   children: ReactNode;
 }
 
@@ -18,7 +19,8 @@ type ButtonAsLink = ButtonBaseProps & { as: "link"; to: string };
 type ButtonProps = ButtonAsButton | ButtonAsLink;
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: "bg-blue-500 text-white hover:bg-blue-600 shadow-sm shadow-blue-200",
+  primary:
+    "bg-[#3b3473] text-white hover:bg-[#4a4380] shadow-sm shadow-[#3b3473]/20",
   secondary: "border border-gray-300 text-gray-700 hover:bg-gray-50",
   ghost: "text-gray-600 hover:text-gray-900 hover:bg-gray-100",
   danger: "border border-red-300 text-red-700 hover:bg-red-50",
@@ -76,10 +78,11 @@ export default function Button(props: ButtonProps) {
     size = "md",
     loading,
     icon,
+    className = "",
     children,
     ...rest
   } = props;
-  const classes = `inline-flex items-center justify-center font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${variantClasses[variant]} ${sizeClasses[size]}`;
+  const classes = `inline-flex items-center justify-center font-medium transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`;
 
   if (props.as === "link") {
     return (

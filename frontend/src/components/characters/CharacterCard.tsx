@@ -3,17 +3,34 @@ import type { Character } from "@/types/character";
 
 interface CharacterCardProps {
   character: Character;
+  showStatus?: boolean;
 }
 
-export default function CharacterCard({ character }: CharacterCardProps) {
-  const { contour, anchor, demeanor } = character.character_data;
+export default function CharacterCard({
+  character,
+  showStatus = false,
+}: CharacterCardProps) {
+  const { anchor, demeanor, contour } = character.character_data;
   const displayName = character.name || anchor?.name || "未命名角色";
 
   return (
     <Link
       to={`/characters/${character.id}`}
-      className="block bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all duration-300 hover:border-gray-200 group"
+      className="block bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all duration-300 hover:border-gray-200 group relative"
     >
+      {/* 右上角状态 — 仅我的角色 */}
+      {showStatus && (
+        <span
+          className={`absolute top-3 right-3 px-2 py-0.5 text-[10px] rounded-full border ${
+            character.is_public
+              ? "text-emerald-600 border-emerald-200 bg-emerald-50"
+              : "text-gray-400 border-gray-200 bg-gray-50"
+          }`}
+        >
+          {character.is_public ? "公开" : "私有"}
+        </span>
+      )}
+
       <div className="flex items-center gap-3 mb-3">
         {character.image_path ? (
           <img
@@ -30,17 +47,18 @@ export default function CharacterCard({ character }: CharacterCardProps) {
           <h3 className="font-semibold text-gray-900 truncate text-sm">
             {displayName}
           </h3>
-          <p className="text-xs text-gray-400 truncate mt-0.5">
-            {anchor?.essence || "等待定义..."}
+          <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">
+            {anchor?.essence ||
+              demeanor?.speech_style ||
+              contour?.first_impression ||
+              "还没有设定描述"}
           </p>
         </div>
       </div>
 
-      <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">
-        {demeanor?.speech_style ||
-          contour?.first_impression ||
-          "还没有设定描述"}
-      </p>
+      <div className="text-xs text-gray-400 truncate mb-6">
+        {anchor?.summary || "等待定义..."}
+      </div>
 
       <div className="flex flex-wrap gap-1">
         {character.tags.slice(0, 3).map((tag) => (
@@ -61,15 +79,6 @@ export default function CharacterCard({ character }: CharacterCardProps) {
             +{character.tags.length - 3}
           </span>
         )}
-        <span
-          className={`px-2 py-0.5 text-[11px] rounded-full border ${
-            character.is_public
-              ? "text-emerald-600 border-emerald-200 bg-emerald-50"
-              : "text-gray-400 border-gray-200 bg-gray-50"
-          }`}
-        >
-          {character.is_public ? "公开" : "私有"}
-        </span>
       </div>
     </Link>
   );

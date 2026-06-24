@@ -24,6 +24,7 @@ export interface Anchor {
   tags: string[];
   theme?: string;
   core_belief?: string;
+  summary?: string;
 }
 
 
@@ -49,10 +50,6 @@ export interface CharacterData {
   bond: Bond;
 }
 
-// ============================================
-// API 类型
-// ============================================
-
 
 export interface ForkRequest {
   new_name?: string;
@@ -74,13 +71,6 @@ export interface ForkChain {
   chain: ForkChainItem[];
 }
 
-export interface PreviewResponse {
-  character_name: string;
-  user_message: string;
-  response: string;
-  mode: string;
-}
-// ... 六层类型保持不变 ...
 
 export interface Tag {
   id: string;
@@ -173,4 +163,17 @@ export interface PresetRelation {
   name: string;
   category: string;
   mutual: boolean;
+}
+export interface ExportOptions {
+  format: "system" | "plain" | "markdown" | "json";
+  include_stories: boolean;
+  include_relations: boolean;
+}
+
+export interface ExportResult {
+  character_data: CharacterData;
+  name: string;
+  tags: string[];
+  stories?: { title: string; content: string; word_count: number }[];
+  relations?: any[];
 }

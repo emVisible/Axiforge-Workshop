@@ -9,6 +9,8 @@ from .routes.relation import router as relation_router
 from .routes.version import router as version_router
 from .routes.upload import router as upload_router
 from .config import settings
+from .routes.story import router as story_router
+
 
 from pathlib import Path
 
@@ -35,6 +37,7 @@ app.include_router(character_router)
 app.include_router(tag_router)
 app.include_router(relation_router)
 app.include_router(upload_router)
+app.include_router(story_router)
 
 
 @app.on_event("startup")

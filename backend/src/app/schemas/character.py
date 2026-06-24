@@ -31,6 +31,7 @@ class Anchor(BaseModel):
     essence: str = Field("", description="一句话本质概括")
     name: str = Field("", description="姓名/称谓")
     tags: List[str] = Field(default_factory=list, description="标签")
+    summary: Optional[str] = Field(None, description="卡片副标题，比essence更短")
     theme: Optional[str] = Field(None)
     core_belief: Optional[str] = Field(None)
 
@@ -90,13 +91,14 @@ class CharacterForkRequest(BaseModel):
     author_id: str = Field("anonymous")
 
 
-class CharacterPreviewRequest(BaseModel):
-    character_id: UUID
-    message: str
-
-
 class CharacterSearchResponse(BaseModel):
     items: List[CharacterResponse]
     total: int
     skip: int
     limit: int
+
+
+class CharacterExportRequest(BaseModel):
+    format: str = Field("markdown", pattern="^(system|plain|markdown|json)$")
+    include_stories: bool = False
+    include_relations: bool = False

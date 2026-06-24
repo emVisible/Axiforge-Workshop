@@ -62,7 +62,6 @@ class RelationService:
         }
 
     async def get_relations_for_character(self, character_id: UUID) -> List[dict]:
-        """获取角色的所有关系（作为源）"""
         result = await self.db.execute(
             select(CharacterRelation)
             .where(CharacterRelation.source_id == character_id)
@@ -77,9 +76,9 @@ class RelationService:
                 cd = target.character_data or {}
                 output.append(
                     {
-                        "id": r.id,
-                        "source_id": r.source_id,
-                        "target_id": r.target_id,
+                        "id": str(r.id),  # 👈 转字符串
+                        "source_id": str(r.source_id),  # 👈 转字符串
+                        "target_id": str(r.target_id),  # 👈 转字符串
                         "target_name": target.name,
                         "target_essence": cd.get("anchor", {}).get("essence"),
                         "relation_name": r.relation_name,

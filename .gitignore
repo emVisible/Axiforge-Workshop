@@ -1,6 +1,7 @@
 # ================================
 # Dependencies
 # ================================
+backend/uploads/characters/*
 
 # Python
 __pycache__/
@@ -76,7 +77,6 @@ Thumbs.db
 # Python
 *.log
 logs/
-uploads/*
 
 # Frontend
 frontend/dist/
