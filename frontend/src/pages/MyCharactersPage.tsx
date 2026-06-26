@@ -33,7 +33,7 @@ export default function MyCharactersPage() {
       return (
         c.name.toLowerCase().includes(term) ||
         c.character_data?.anchor?.essence?.toLowerCase().includes(term) ||
-        c.character_data?.anchor?.name?.toLowerCase().includes(term) ||
+        c.character_data?.anchor?.summary?.toLowerCase().includes(term) ||
         c.tags.some((t) => t.name.toLowerCase().includes(term))
       );
     }) || [];
@@ -42,6 +42,11 @@ export default function MyCharactersPage() {
   const visible = filtered.slice(0, visibleCount);
   const hasMore = visibleCount < filtered.length;
 
+  // 搜索变化时重置分页
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [debouncedSearch]);
+
   return (
     <div className="animate-fadeIn">
       <div className="flex items-end justify-between mb-6">
@@ -49,7 +54,7 @@ export default function MyCharactersPage() {
           <h1 className="text-2xl font-bold text-gray-900">我的角色</h1>
           <p className="text-sm text-gray-400 mt-1">
             {allCharacters
-              ? `${allCharacters.length} 个角色`
+              ? `${filtered.length} 个角色`
               : "管理和编辑你创建的角色"}
           </p>
         </div>
@@ -58,6 +63,7 @@ export default function MyCharactersPage() {
         </Button>
       </div>
 
+      {/* 搜索 */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
         <div className="relative">
           <svg
@@ -76,14 +82,22 @@ export default function MyCharactersPage() {
           <input
             type="text"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setVisibleCount(PAGE_SIZE);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="搜索我的角色..."
             className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none transition-all"
           />
         </div>
+        {search && (
+          <div className="mt-2 flex items-center justify-between text-xs text-gray-400">
+            <span>找到 {filtered.length} 个匹配角色</span>
+            <button
+              onClick={() => setSearch("")}
+              className="text-red-400 hover:text-red-600 transition-colors"
+            >
+              清除
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading && <LoadingSpinner />}
@@ -103,7 +117,7 @@ export default function MyCharactersPage() {
 
       {visible.length > 0 && (
         <>
-          <CharacterGrid characters={visible} showStatus/>
+          <CharacterGrid characters={visible} showStatus />
           <div className="mt-8 text-center">
             {hasMore && (
               <Button

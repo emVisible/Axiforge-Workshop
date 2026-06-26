@@ -81,6 +81,7 @@ class CharacterResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     image_path: Optional[str] = None
+    view_count: int = 0
 
     class Config:
         from_attributes = True

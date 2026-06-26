@@ -26,7 +26,6 @@ export default function HallPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // 筛选条件变化时重置页码和列表
   useEffect(() => {
     setPage(0);
     setAllCharacters([]);
@@ -46,7 +45,6 @@ export default function HallPage() {
     limit: PAGE_SIZE,
   });
 
-  // 追加数据
   useEffect(() => {
     if (result) {
       if (page === 0) {
@@ -95,131 +93,122 @@ export default function HallPage() {
         </Button>
       </div>
 
-      {/* 搜索 */}
+      {/* 搜索 + 排序 + 清除 */}
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-4">
-        <div className="relative">
-          <svg
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <svg
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="搜索角色名称或概括..."
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none transition-all"
             />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索角色名、本质概括..."
-            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none transition-all"
-          />
-        </div>
-      </div>
+          </div>
 
-      {/* 标签云 */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-            标签筛选
-          </span>
-          <div className="flex items-center gap-1">
+          {/* 排序 — 分段按钮风格 */}
+          <div className="flex items-center bg-gray-100 rounded-xl p-0.5 flex-shrink-0">
             <button
               onClick={() => setSort("recent")}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+              className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 sort === "recent"
-                  ? "bg-gray-100 text-gray-700 font-medium"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               最新
             </button>
             <button
               onClick={() => setSort("popular")}
-              className={`px-3 py-1 text-xs rounded-lg transition-colors ${
+              className={`px-3.5 py-1.5 text-xs font-medium rounded-lg transition-all ${
                 sort === "popular"
-                  ? "bg-gray-100 text-gray-700 font-medium"
-                  : "text-gray-400 hover:text-gray-600"
+                  ? "bg-white text-gray-900 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               最热
             </button>
-            {hasFilters && (
+          </div>
+
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="text-xs text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
+            >
+              清除筛选
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 标签云 */}
+      {visibleTags.length > 0 && (
+        <div className="mb-6">
+          <div className="flex flex-wrap gap-1.5">
+            {displayTags.map((tag) => (
               <button
-                onClick={clearFilters}
-                className="ml-2 px-2 py-1 text-xs text-red-400 hover:text-red-600 transition-colors"
+                key={tag.id}
+                onClick={() => toggleTag(tag.name)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 ${
+                  selectedTags.includes(tag.name)
+                    ? "shadow-sm scale-105"
+                    : "hover:scale-105 opacity-70 hover:opacity-100"
+                }`}
+                style={{
+                  color: selectedTags.includes(tag.name) ? "#fff" : tag.color,
+                  borderColor: tag.color + "40",
+                  backgroundColor: selectedTags.includes(tag.name)
+                    ? tag.color
+                    : tag.color + "10",
+                }}
               >
-                清除
+                {tag.name}
+                {tag.usage_count > 0 && (
+                  <span className="ml-1 opacity-60">{tag.usage_count}</span>
+                )}
+              </button>
+            ))}
+            {hiddenCount > 0 && !showAllTags && (
+              <button
+                onClick={() => setShowAllTags(true)}
+                className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                +{hiddenCount} 更多
+              </button>
+            )}
+            {showAllTags && hiddenCount > 0 && (
+              <button
+                onClick={() => setShowAllTags(false)}
+                className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                收起
               </button>
             )}
           </div>
         </div>
-
-        {visibleTags.length > 0 ? (
-          <>
-            <div className="flex flex-wrap gap-1.5">
-              {displayTags.map((tag) => (
-                <button
-                  key={tag.id}
-                  onClick={() => toggleTag(tag.name)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 ${
-                    selectedTags.includes(tag.name)
-                      ? "shadow-sm scale-105"
-                      : "hover:scale-105 opacity-70 hover:opacity-100"
-                  }`}
-                  style={{
-                    color: selectedTags.includes(tag.name) ? "#fff" : tag.color,
-                    borderColor: tag.color + "40",
-                    backgroundColor: selectedTags.includes(tag.name)
-                      ? tag.color
-                      : tag.color + "10",
-                  }}
-                >
-                  {tag.name}
-                  {tag.usage_count > 0 && (
-                    <span className="ml-1 opacity-60">{tag.usage_count}</span>
-                  )}
-                </button>
-              ))}
-              {hiddenCount > 0 && !showAllTags && (
-                <button
-                  onClick={() => setShowAllTags(true)}
-                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  +{hiddenCount} 更多
-                </button>
-              )}
-              {showAllTags && hiddenCount > 0 && (
-                <button
-                  onClick={() => setShowAllTags(false)}
-                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  收起
-                </button>
-              )}
-            </div>
-          </>
-        ) : (
-          <p className="text-xs text-gray-300">
-            还没有标签，创建角色时添加标签吧
-          </p>
-        )}
-      </div>
+      )}
 
       {/* 角色列表 */}
       {isLoading && page === 0 && <LoadingSpinner />}
-
       {error && (
         <ErrorDisplay
           message="加载角色失败"
           onRetry={() => window.location.reload()}
         />
       )}
-
       {result && allCharacters.length === 0 && (
         <EmptyState
           title={hasFilters ? "没有匹配的角色" : "大厅空空如也"}
@@ -235,8 +224,6 @@ export default function HallPage() {
       {allCharacters.length > 0 && (
         <>
           <CharacterGrid characters={allCharacters} />
-
-          {/* 加载更多 */}
           <div className="mt-8 text-center">
             {isLoading && page > 0 && <LoadingSpinner />}
             {hasMore && !isLoading && (

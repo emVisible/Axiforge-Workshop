@@ -91,6 +91,7 @@ export interface Character {
   fork_from: string | null;
   created_at: string;
   updated_at: string;
+  view_count?: number;
 }
 
 export interface CharacterCreate {
@@ -126,6 +127,7 @@ export interface RelationResponse {
   description?: string;
   is_mutual: boolean;
   created_at: string;
+  direction?: "in" | "out";
 }
 
 export interface RelationCreate {

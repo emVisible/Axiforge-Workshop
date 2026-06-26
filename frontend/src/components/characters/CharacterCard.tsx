@@ -6,6 +6,12 @@ interface CharacterCardProps {
   showStatus?: boolean;
 }
 
+function formatViews(n: number): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(1)}w`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
 export default function CharacterCard({
   character,
   showStatus = false,
@@ -18,7 +24,6 @@ export default function CharacterCard({
       to={`/characters/${character.id}`}
       className="block bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-all duration-300 hover:border-gray-200 group relative"
     >
-      {/* 右上角状态 — 仅我的角色 */}
       {showStatus && (
         <span
           className={`absolute top-3 right-3 px-2 py-0.5 text-[10px] rounded-full border ${
@@ -47,20 +52,25 @@ export default function CharacterCard({
           <h3 className="font-semibold text-gray-900 truncate text-sm">
             {displayName}
           </h3>
-          <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">
-            {anchor?.essence ||
-              demeanor?.speech_style ||
-              contour?.first_impression ||
-              "还没有设定描述"}
+          <p className="text-xs text-gray-400 truncate mt-0.5">
+            {anchor?.essence || "等待定义..."}
           </p>
         </div>
       </div>
 
-      <div className="text-xs text-gray-400 truncate mb-6">
-        {anchor?.summary || "等待定义..."}
-      </div>
+      <p className="text-xs text-gray-500 line-clamp-2 mb-3 leading-relaxed">
+        {anchor?.summary ||
+          demeanor?.speech_style ||
+          contour?.first_impression ||
+          "还没有设定描述"}
+      </p>
 
       <div className="flex flex-wrap gap-1">
+        {(character.view_count ?? 0) > 0 && (
+          <span className="px-2 py-0.5 text-[11px] text-gray-400 bg-gray-50 rounded-full border border-gray-200 flex items-center gap-0.5">
+            🔥 {formatViews(character.view_count ?? 0)}
+          </span>
+        )}
         {character.tags.slice(0, 3).map((tag) => (
           <span
             key={tag.id}

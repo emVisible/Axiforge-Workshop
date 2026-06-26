@@ -55,7 +55,11 @@ class CharacterService:
             .where(Character.id == character_id)
             .options(selectinload(Character.tags))
         )
-        return result.scalar_one_or_none()
+        character = result.scalar_one_or_none()
+        if character:
+            character.view_count = (character.view_count or 0) + 1
+            await self.db.commit()
+        return character
 
     async def get_public_characters(
         self, skip: int = 0, limit: int = 20
@@ -99,7 +103,12 @@ class CharacterService:
         total_result = await self.db.execute(count_stmt)
         total = total_result.scalar() or 0
 
-        base = base.order_by(Character.created_at.desc())
+        # 排序
+        if sort_by == "popular":
+            base = base.order_by(Character.view_count.desc())
+        else:
+            base = base.order_by(Character.created_at.desc())
+
         base = base.offset(skip).limit(limit).options(selectinload(Character.tags))
 
         result = await self.db.execute(base)
@@ -217,7 +226,7 @@ class CharacterService:
             source_id=forked.id,
             data=RelationCreate(
                 target_id=original.id,
-                relation_name="Fork自",
+                relation_name="Fork",
                 relation_type="preset",
                 is_mutual=False,
             ),

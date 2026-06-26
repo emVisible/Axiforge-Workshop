@@ -18,7 +18,6 @@ interface RelationGraphProps {
   characterId: string;
 }
 
-// ── 中世纪羊皮纸色板 ──
 const Palette = {
   parchment: "#f3ecd8",
   parchmentDark: "#e8dfc8",
@@ -38,12 +37,9 @@ const Palette = {
   threadRed: "#8b3a3a",
 };
 
-// ── 几何形状定义 ──
-// 中心：菱形 ◆
 function diamondPath(r: number): string {
   return `M0,${-r} L${r},0 L0,${r} L${-r},0 Z`;
 }
-// 关联角色：六边形 ⬡
 function hexagonPath(r: number): string {
   const pts = d3.range(6).map((i) => {
     const a = (Math.PI / 3) * i - Math.PI / 6;
@@ -51,7 +47,6 @@ function hexagonPath(r: number): string {
   });
   return `M${pts.map((p) => p.join(",")).join("L")}Z`;
 }
-// 更多关联（>6个连线）的角色：盾形
 function shieldPath(r: number): string {
   const top = -r;
   const bottom = r * 1.1;
@@ -63,12 +58,8 @@ function getNodeShape(
   node: GraphNode,
   linkCount: number,
 ): { path: string; r: number } {
-  if (node.is_center) {
-    return { path: diamondPath(26), r: 26 };
-  }
-  if (linkCount >= 6) {
-    return { path: shieldPath(18), r: 20 };
-  }
+  if (node.is_center) return { path: diamondPath(26), r: 26 };
+  if (linkCount >= 6) return { path: shieldPath(18), r: 20 };
   return { path: hexagonPath(18), r: 18 };
 }
 
@@ -83,8 +74,8 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
     if (!data || !containerRef.current) return;
 
     const container = containerRef.current;
-    const width = isFullscreen ? window.innerWidth - 80 : container.clientWidth;
-    const height = isFullscreen ? window.innerHeight - 120 : 440;
+    const width = isFullscreen ? window.innerWidth : container.clientWidth;
+    const height = isFullscreen ? window.innerHeight : 440;
 
     d3.select(container).selectAll("svg").remove();
 
@@ -97,7 +88,7 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
 
     svgRef.current = svg.node();
 
-    // ── 羊皮纸背景 ──
+    // 羊皮纸背景
     const defs = svg.append("defs");
     defs
       .append("radialGradient")
@@ -121,7 +112,6 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .attr("fill", "url(#parchGrad)")
       .attr("rx", isFullscreen ? 0 : 16);
 
-    // 装饰边框
     if (!isFullscreen) {
       svg
         .append("rect")
@@ -136,11 +126,10 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
         .attr("rx", 12);
     }
 
-    // ── 数据 ──
+    // 数据
     const nodes: GraphNode[] = data.nodes.map((n) => ({ ...n }));
     const links: GraphLink[] = data.links.map((l) => ({ ...l }));
 
-    // 计算每个节点的连线数
     const linkCountMap = new Map<string, number>();
     links.forEach((l) => {
       const s =
@@ -151,7 +140,7 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       linkCountMap.set(t, (linkCountMap.get(t) || 0) + 1);
     });
 
-    // ── 力导向 ──
+    // 力导向
     const simulation = d3
       .forceSimulation<GraphNode>(nodes)
       .force(
@@ -165,23 +154,23 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .force("center", d3.forceCenter(width / 2, height / 2))
       .force("collision", d3.forceCollide().radius(isFullscreen ? 65 : 50));
 
-    // ── 箭头 ──
+    // 箭头
     svg
       .append("defs")
       .append("marker")
       .attr("id", "arrow")
-      .attr("viewBox", "0 -4 10 8")
-      .attr("refX", 28)
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 22)
       .attr("refY", 0)
-      .attr("markerWidth", 5)
-      .attr("markerHeight", 5)
+      .attr("markerWidth", 6)
+      .attr("markerHeight", 6)
       .attr("orient", "auto")
       .append("path")
       .attr("fill", Palette.threadRed)
-      .attr("d", "M0,-3L7,0L0,3")
-      .attr("opacity", 0.6);
+      .attr("d", "M0,-4L8,0L0,4")
+      .attr("opacity", 0.7);
 
-    // ── 连线 ──
+    // 连线
     const linkGroup = svg.append("g");
     const line = linkGroup
       .selectAll<SVGLineElement, GraphLink>("line")
@@ -202,7 +191,7 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .attr("font-size", "10px")
       .attr("fill", Palette.cream)
       .attr("text-anchor", "middle")
-      .attr("dy", -9)
+      .attr("dy", -12)
       .attr("stroke", Palette.cream)
       .attr("stroke-width", 3)
       .attr("paint-order", "stroke")
@@ -218,14 +207,13 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .attr("font-size", "10px")
       .attr("fill", Palette.sepia)
       .attr("text-anchor", "middle")
-      .attr("dy", -9)
+      .attr("dy", -12)
       .style("font-family", "'Crimson Text', 'Georgia', serif")
       .style("font-style", "italic");
 
-    // ── 节点 ──
+    // 节点
     const nodeGroup = svg.append("g");
 
-    // 中心光晕
     const glow = nodeGroup
       .selectAll<SVGCircleElement, GraphNode>("circle.glow")
       .data(nodes.filter((n) => n.is_center))
@@ -236,7 +224,6 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .attr("stroke-width", 10)
       .attr("opacity", 0.35);
 
-    // 节点形状
     const nodeShapes = nodeGroup
       .selectAll<SVGPathElement, GraphNode>("path.node")
       .data(nodes)
@@ -253,7 +240,6 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
           : `drop-shadow(0 1px 3px ${Palette.shadow})`,
       );
 
-    // 标签
     const labels = nodeGroup
       .selectAll<SVGTextElement, GraphNode>("text.nl")
       .data(nodes)
@@ -271,7 +257,6 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
         "'Crimson Text', 'Georgia', 'Noto Serif SC', serif",
       );
 
-    // 完整名称
     const subLabels = nodeGroup
       .selectAll<SVGTextElement, GraphNode>("text.sl")
       .data(nodes.filter((n) => n.name.length > 4))
@@ -286,7 +271,7 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       .style("font-family", "'Crimson Text', 'Georgia', serif")
       .attr("opacity", 0.6);
 
-    // ── 交互 ──
+    // 交互
     nodeShapes.call(
       d3
         .drag<SVGPathElement, GraphNode>()
@@ -310,39 +295,40 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       if (!d.is_center) window.location.href = `/characters/${d.id}`;
     });
     nodeShapes.on("mouseenter", function (_, d) {
-      const shape = getNodeShape(d, linkCountMap.get(d.id) || 0);
-      d3.select(this)
-        .transition()
-        .duration(200)
-        .attr(
-          "d",
-          shape.path.replace(
-            new RegExp(String(shape.r), "g"),
-            String(shape.r + 5),
-          ),
-        )
-        .style(
-          "filter",
-          d.is_center
-            ? `drop-shadow(0 3px 18px ${Palette.goldLeafStrong})`
-            : `drop-shadow(0 2px 8px ${Palette.shadow})`,
-        );
-    });
-    nodeShapes.on("mouseleave", function (_, d) {
-      const shape = getNodeShape(d, linkCountMap.get(d.id) || 0);
-      d3.select(this)
-        .transition()
-        .duration(300)
-        .attr("d", shape.path)
-        .style(
-          "filter",
-          d.is_center
-            ? `drop-shadow(0 2px 10px ${Palette.goldLeafStrong})`
-            : `drop-shadow(0 1px 3px ${Palette.shadow})`,
-        );
+      if (d.is_center) {
+        d3.select(this)
+          .transition()
+          .duration(250)
+          .attr("stroke-width", 3)
+          .style("filter", `drop-shadow(0 3px 16px ${Palette.goldLeafStrong})`);
+        glow.transition().duration(250).attr("r", 50).attr("opacity", 0.55);
+      } else {
+        d3.select(this)
+          .transition()
+          .duration(100)
+          .attr("stroke-width", 1.8)
+          .style("filter", `drop-shadow(0 2px 8px rgba(59,51,37,0.25))`);
+      }
     });
 
-    // 缩放 — 默认 1.3x
+    nodeShapes.on("mouseleave", function (_, d) {
+      if (d.is_center) {
+        d3.select(this)
+          .transition()
+          .duration(350)
+          .attr("stroke-width", 2.2)
+          .style("filter", `drop-shadow(0 2px 10px ${Palette.goldLeafStrong})`);
+        glow.transition().duration(350).attr("r", 40).attr("opacity", 0.35);
+      } else {
+        d3.select(this)
+          .transition()
+          .duration(100)
+          .attr("stroke-width", 1.3)
+          .style("filter", `drop-shadow(0 1px 3px ${Palette.shadow})`);
+      }
+    });
+
+    // 缩放
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.25, 4])
@@ -355,13 +341,38 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       d3.zoomIdentity.translate(-width * 0.12, -height * 0.1).scale(1.3),
     );
 
-    // ── 每帧 ──
+    // tick
     simulation.on("tick", () => {
       line
         .attr("x1", (d) => (d.source as GraphNode).x!)
         .attr("y1", (d) => (d.source as GraphNode).y!)
-        .attr("x2", (d) => (d.target as GraphNode).x!)
-        .attr("y2", (d) => (d.target as GraphNode).y!);
+        .attr("x2", (d) => {
+          const tx = (d.target as GraphNode).x!,
+            sx = (d.source as GraphNode).x!;
+          const ty = (d.target as GraphNode).y!,
+            sy = (d.source as GraphNode).y!;
+          const dist = Math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2);
+          if (d.is_mutual || dist === 0) return tx;
+          const r = getNodeShape(
+            d.target as GraphNode,
+            linkCountMap.get((d.target as GraphNode).id) || 0,
+          ).r;
+          return tx - (r / dist) * (tx - sx);
+        })
+        .attr("y2", (d) => {
+          const tx = (d.target as GraphNode).x!,
+            sx = (d.source as GraphNode).x!;
+          const ty = (d.target as GraphNode).y!,
+            sy = (d.source as GraphNode).y!;
+          const dist = Math.sqrt((tx - sx) ** 2 + (ty - sy) ** 2);
+          if (d.is_mutual || dist === 0) return ty;
+          const r = getNodeShape(
+            d.target as GraphNode,
+            linkCountMap.get((d.target as GraphNode).id) || 0,
+          ).r;
+          return ty - (r / dist) * (ty - sy);
+        });
+
       linkLabelBg
         .attr(
           "x",
@@ -380,6 +391,7 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
           "y",
           (d) => ((d.source as GraphNode).y! + (d.target as GraphNode).y!) / 2,
         );
+
       glow.attr("cx", (d) => d.x!).attr("cy", (d) => d.y!);
       nodeShapes.attr("transform", (d) => `translate(${d.x},${d.y})`);
       labels.attr("x", (d) => d.x!).attr("y", (d) => d.y!);
@@ -476,11 +488,10 @@ export default function RelationGraph({ characterId }: RelationGraphProps) {
       <div
         ref={containerRef}
         className={`w-full ${isFullscreen ? "fixed inset-0 z-50" : ""}`}
-        style={
-          isFullscreen
-            ? { minHeight: "100vh", background: Palette.parchment }
-            : { minHeight: 440 }
-        }
+        style={{
+          minHeight: isFullscreen ? "100vh" : 440,
+          background: isFullscreen ? Palette.parchment : "transparent",
+        }}
       >
         {isFullscreen && (
           <div className="absolute top-4 right-4 z-10 flex items-center gap-2">

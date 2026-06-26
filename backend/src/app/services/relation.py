@@ -64,27 +64,40 @@ class RelationService:
     async def get_relations_for_character(self, character_id: UUID) -> List[dict]:
         result = await self.db.execute(
             select(CharacterRelation)
-            .where(CharacterRelation.source_id == character_id)
+            .where(
+                or_(
+                    CharacterRelation.source_id == character_id,
+                    CharacterRelation.target_id == character_id,
+                )
+            )
             .order_by(CharacterRelation.created_at.desc())
         )
         relations = result.scalars().all()
 
         output = []
         for r in relations:
-            target = await self.db.get(Character, r.target_id)
+            if r.source_id == character_id:
+                other_id = r.target_id
+                direction = "out"  # 我指向对方
+            else:
+                other_id = r.source_id
+                direction = "in"  # 对方指向我
+
+            target = await self.db.get(Character, other_id)
             if target:
                 cd = target.character_data or {}
                 output.append(
                     {
-                        "id": str(r.id),  # 👈 转字符串
-                        "source_id": str(r.source_id),  # 👈 转字符串
-                        "target_id": str(r.target_id),  # 👈 转字符串
+                        "id": str(r.id),
+                        "source_id": str(r.source_id),
+                        "target_id": str(r.target_id),
                         "target_name": target.name,
                         "target_essence": cd.get("anchor", {}).get("essence"),
                         "relation_name": r.relation_name,
                         "relation_type": r.relation_type,
                         "description": r.description,
                         "is_mutual": r.is_mutual,
+                        "direction": direction,
                         "created_at": r.created_at,
                     }
                 )
@@ -92,7 +105,6 @@ class RelationService:
 
     async def get_relation_graph(self, character_id: UUID, depth: int = 1) -> dict:
         """获取以某角色为中心的图谱数据"""
-        # 直接关系
         result = await self.db.execute(
             select(CharacterRelation).where(
                 or_(

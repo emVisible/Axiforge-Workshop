@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -122,6 +122,7 @@ export default function CharacterDetailPage() {
   const [exporting, setExporting] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const { data: versions } = useQuery({
     queryKey: ["versions", character?.id],
@@ -129,8 +130,6 @@ export default function CharacterDetailPage() {
     enabled: !!character,
   });
   const versionsCount = versions?.length || 0;
-  const goBack = () => navigate(-1);
-
   const handleExportMarkdown = async () => {
     if (!character) return;
     setExporting(true);
@@ -322,21 +321,43 @@ export default function CharacterDetailPage() {
       )}
 
       <nav className="mb-6">
-        <button
-          onClick={goBack}
+        <Link
+          to="/hall"
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
           ← 返回
-        </button>
+        </Link>
       </nav>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 mb-6 group/card relative overflow-hidden">
         <div className="absolute top-4 right-4 flex flex-col items-end gap-0.5 opacity-0 translate-x-2 group-hover/card:opacity-100 group-hover/card:translate-x-0 transition-all duration-300 ease-out z-10">
-          <button
-            onClick={() => setIsVersionOpen(true)}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100 whitespace-nowrap"
-          >
-            🕰️ {versionsCount} 个版本
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsVersionOpen(true)}
+              className="text-xs text-gray-400 hover:text-gray-600 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100 whitespace-nowrap"
+            >
+              🕰️ {versionsCount} 个版本
+            </button>
+            <button
+              onClick={async () => {
+                const url = window.location.href;
+                try {
+                  await navigator.clipboard.writeText(url);
+                } catch {
+                  const ta = document.createElement("textarea");
+                  ta.value = url;
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand("copy");
+                  document.body.removeChild(ta);
+                }
+                setCopiedLink(true);
+                setTimeout(() => setCopiedLink(false), 2000);
+              }}
+              className="text-xs text-gray-400 hover:text-blue-500 transition-colors py-1 px-2 rounded-lg hover:bg-gray-100 whitespace-nowrap"
+            >
+              {copiedLink ? "✓ 链接已复制" : "🔗 分享"}
+            </button>
+          </div>
           <div className="h-px bg-gray-100 my-0.5 w-8" />
           <Button
             as="link"
@@ -418,7 +439,7 @@ export default function CharacterDetailPage() {
         </div>
 
         <div className="flex items-start gap-8">
-          <div className="group/img flex-shrink-0">
+          <div className="group/img flex-shrink-0 relative">
             {character.image_path ? (
               <img
                 src={character.image_path}
@@ -430,6 +451,13 @@ export default function CharacterDetailPage() {
                 {displayName[0]}
               </div>
             )}
+            {/* 浏览量角标 */}
+            <span className="absolute -top-1.5 -right-1.5 px-2 py-0.5 text-[10px] bg-white border border-gray-200 rounded-full shadow-sm text-gray-400 flex items-center gap-0.5">
+              🔥{" "}
+              {(character.view_count ?? 0) > 999
+                ? `${((character.view_count ?? 0) / 1000).toFixed(1)}k`
+                : (character.view_count ?? 0)}
+            </span>
           </div>
 
           <div className="flex-1 min-w-0 self-center">
@@ -489,18 +517,15 @@ export default function CharacterDetailPage() {
               </button>
               <span className="text-gray-200">·</span>
               {character.fork_from ? (
-                <>
-                  <span>
-                    Fork 自{" "}
-                    <Link
-                      to={`/characters/${character.fork_from}`}
-                      className="text-blue-500 hover:text-blue-600"
-                    >
-                      原始角色
-                    </Link>
-                  </span>
-                  <ForkChain characterId={character.id} />
-                </>
+                <span>
+                  Fork{" "}
+                  <Link
+                    to={`/characters/${character.fork_from}`}
+                    className="text-blue-500 hover:text-blue-600"
+                  >
+                    原始角色
+                  </Link>
+                </span>
               ) : (
                 <span className="text-gray-300">原始角色</span>
               )}

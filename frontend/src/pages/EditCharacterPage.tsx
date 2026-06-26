@@ -3,12 +3,7 @@ import { useParams, useNavigate, Link } from "react-router";
 import { useCharacter, useUpdateCharacter } from "@/hooks/useCharacters";
 import { useEditorStore } from "@/stores";
 import { CharacterEditor } from "@/components/characters";
-import {
-  LoadingSpinner,
-  ErrorDisplay,
-  Button,
-  ImageUpload,
-} from "@/components/ui";
+import { LoadingSpinner, ErrorDisplay, Button } from "@/components/ui";
 
 export default function EditCharacterPage() {
   const { id } = useParams<{ id: string }>();
@@ -45,7 +40,7 @@ export default function EditCharacterPage() {
         },
       });
       markClean();
-      navigate(`/characters/${character.id}`);
+      navigate(`/characters/${character.id}`, { replace: true });
       window.location.reload();
     } catch (err) {
       setSaveError("保存失败");
@@ -69,24 +64,12 @@ export default function EditCharacterPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-        <div className="flex items-start gap-6">
-          <ImageUpload value={imagePath} onChange={setImagePath} />
-          <div className="flex-1">
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
-              />
-              公开到角色大厅
-            </label>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-        <CharacterEditor />
+        <CharacterEditor
+          imagePath={imagePath}
+          onImageChange={setImagePath}
+          isPublic={isPublic}
+          onPublicChange={setIsPublic}
+        />
       </div>
 
       <div className="flex items-center justify-end gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">

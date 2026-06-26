@@ -1,13 +1,6 @@
-import { useEditorStore } from '@/stores/editorStore';
-import { Input, Textarea } from '@/components/ui';
-import type { Demeanor } from '@/types/character';
-
-const fields: { key: keyof Demeanor; label: string; placeholder: string; type: 'input' | 'textarea' }[] = [
-  { key: 'speech_style', label: '说话方式', placeholder: '语气、节奏、口头禅', type: 'input' },
-  { key: 'habits', label: '习惯/癖好', placeholder: '下意识的小动作——"紧张时转动戒指"', type: 'input' },
-  { key: 'typical_reaction', label: '常见反应', placeholder: '遇到突发事情时的第一反应模式', type: 'textarea' },
-  { key: 'expressiveness', label: '情绪外露程度', placeholder: '内敛藏事 ↔ 喜怒形于色', type: 'input' },
-];
+import { useEditorStore } from "@/stores/editorStore";
+import ToggleInput from "@/components/ui/ToggleInput";
+import { layerPresets } from "@/lib/presets";
 
 export default function DemeanorEditor() {
   const { draft, updateField } = useEditorStore();
@@ -15,27 +8,39 @@ export default function DemeanorEditor() {
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-gray-400">举止需要观察才能了解——相处一段时间后能注意到的行为模式。</p>
-      {fields.map(({ key, label, placeholder, type }) =>
-        type === 'input' ? (
-          <Input
-            key={key}
-            label={label}
-            value={draft.demeanor[key] || ''}
-            onChange={(e) => updateField(`demeanor.${key}`, e.target.value)}
-            placeholder={placeholder}
-          />
-        ) : (
-          <Textarea
-            key={key}
-            label={label}
-            value={draft.demeanor[key] || ''}
-            onChange={(e) => updateField(`demeanor.${key}`, e.target.value)}
-            placeholder={placeholder}
-            rows={3}
-          />
-        )
-      )}
+      <p className="text-sm text-gray-400">
+        举止需要观察才能了解——相处后能注意到的行为模式。
+      </p>
+      <ToggleInput
+        label="说话方式"
+        value={draft.demeanor.speech_style || ""}
+        onChange={(v) => updateField("demeanor.speech_style", v)}
+        options={layerPresets.demeanor.speech_style}
+        placeholder="语气、节奏、风格"
+      />
+      <ToggleInput
+        label="习惯/癖好"
+        value={draft.demeanor.habits || ""}
+        onChange={(v) => updateField("demeanor.habits", v)}
+        options={layerPresets.demeanor.habits}
+        placeholder="下意识的小动作"
+      />
+      <ToggleInput
+        label="常见反应"
+        value={draft.demeanor.typical_reaction || ""}
+        onChange={(v) => updateField("demeanor.typical_reaction", v)}
+        options={layerPresets.demeanor.typical_reaction}
+        placeholder="遇到事情时的第一反应"
+        type="textarea"
+        rows={2}
+      />
+      <ToggleInput
+        label="情绪外露程度"
+        value={draft.demeanor.expressiveness || ""}
+        onChange={(v) => updateField("demeanor.expressiveness", v)}
+        options={layerPresets.demeanor.expressiveness}
+        placeholder="内敛 ↔ 外放"
+      />
     </div>
   );
 }

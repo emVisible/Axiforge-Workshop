@@ -1,38 +1,6 @@
 import { useEditorStore } from "@/stores/editorStore";
-import { Input, Textarea } from "@/components/ui";
-import type { Contour } from "@/types/character";
-
-const fields: {
-  key: keyof Contour;
-  label: string;
-  placeholder: string;
-  type: "input" | "textarea";
-}[] = [
-  {
-    key: "appearance",
-    label: "外貌特征",
-    placeholder: "一眼可见的外表——发色、瞳色、体型",
-    type: "input",
-  },
-  {
-    key: "age_era",
-    label: "年龄/时代",
-    placeholder: '如"17岁高中生"或"维多利亚时代的商人"',
-    type: "input",
-  },
-  {
-    key: "identity",
-    label: "身份/职业",
-    placeholder: "社会角色或职业标签",
-    type: "input",
-  },
-  {
-    key: "first_impression",
-    label: "第一印象",
-    placeholder: "陌生人见到TA的第一感觉",
-    type: "textarea",
-  },
-];
+import ToggleInput from "@/components/ui/ToggleInput";
+import { layerPresets } from "@/lib/presets";
 
 export default function ContourEditor() {
   const { draft, updateField } = useEditorStore();
@@ -43,26 +11,36 @@ export default function ContourEditor() {
       <p className="text-sm text-gray-400">
         轮廓是角色最外层的信息——任何人都能一眼看到的。
       </p>
-      {fields.map(({ key, label, placeholder, type }) =>
-        type === "input" ? (
-          <Input
-            key={key}
-            label={label}
-            value={draft.contour[key] || ""}
-            onChange={(e) => updateField(`contour.${key}`, e.target.value)}
-            placeholder={placeholder}
-          />
-        ) : (
-          <Textarea
-            key={key}
-            label={label}
-            value={draft.contour[key] || ""}
-            onChange={(e) => updateField(`contour.${key}`, e.target.value)}
-            placeholder={placeholder}
-            rows={2}
-          />
-        ),
-      )}
+      <ToggleInput
+        label="外貌特征"
+        value={draft.contour.appearance || ""}
+        onChange={(v) => updateField("contour.appearance", v)}
+        options={layerPresets.contour.appearance}
+        placeholder="发色、体型、标志特征"
+      />
+      <ToggleInput
+        label="年龄/时代"
+        value={draft.contour.age_era || ""}
+        onChange={(v) => updateField("contour.age_era", v)}
+        options={layerPresets.contour.age_era}
+        placeholder="如「二十出头」"
+      />
+      <ToggleInput
+        label="身份/职业"
+        value={draft.contour.identity || ""}
+        onChange={(v) => updateField("contour.identity", v)}
+        options={layerPresets.contour.identity}
+        placeholder="社会角色或职业"
+      />
+      <ToggleInput
+        label="第一印象"
+        value={draft.contour.first_impression || ""}
+        onChange={(v) => updateField("contour.first_impression", v)}
+        options={layerPresets.contour.first_impression}
+        placeholder="陌生人见到TA的第一感觉"
+        type="textarea"
+        rows={2}
+      />
     </div>
   );
 }

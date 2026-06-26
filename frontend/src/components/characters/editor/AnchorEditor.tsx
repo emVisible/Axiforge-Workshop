@@ -1,8 +1,26 @@
 import { useState } from "react";
 import { useEditorStore } from "@/stores/editorStore";
-import { Input, Textarea, Badge } from "@/components/ui";
+import ToggleInput from "@/components/ui/ToggleInput";
+import ImageUpload from "@/components/ui/ImageUpload";
+import { layerPresets } from "@/lib/presets";
+import Badge from "@/components/ui/Badge";
+import Input from "@/components/ui/Input";
+import TemplateSelector from "../TemplateSelector";
+import { generateTagColor } from "@/lib/presets";
 
-export default function AnchorEditor() {
+interface AnchorEditorProps {
+  imagePath?: string;
+  onImageChange?: (path: string) => void;
+  isPublic?: boolean;
+  onPublicChange?: (v: boolean) => void;
+}
+
+export default function AnchorEditor({
+  imagePath,
+  onImageChange,
+  isPublic,
+  onPublicChange,
+}: AnchorEditorProps) {
   const { draft, updateField } = useEditorStore();
   const [tagInput, setTagInput] = useState("");
   if (!draft) return null;
@@ -14,35 +32,65 @@ export default function AnchorEditor() {
       setTagInput("");
     }
   };
+  const handleTagKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+      e.preventDefault();
+      addTag();
+    }
+  };
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-gray-400">
-        锚点是角色的核心。<span className="text-red-400">*</span> 为必填
-      </p>
+      <div className="flex items-start gap-5 p-4 bg-gray-50 rounded-xl">
+        {onImageChange && (
+          <ImageUpload value={imagePath || ""} onChange={onImageChange} />
+        )}
+        <div className="flex-1 space-y-3">
+          <Input
+            label="姓名/称谓"
+            required
+            value={draft.anchor.name}
+            onChange={(e) => updateField("anchor.name", e.target.value)}
+            placeholder="角色如何称呼"
+          />
+          {onPublicChange !== undefined && (
+            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => onPublicChange(e.target.checked)}
+                className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
+              />
+              公开到角色大厅
+            </label>
+          )}
+        </div>
+      </div>
 
-      <Input
-        label="姓名/称谓"
-        required
-        value={draft.anchor.name}
-        onChange={(e) => updateField("anchor.name", e.target.value)}
-        placeholder="角色叫什么 *"
-      />
+      <TemplateSelector />
 
-      <Textarea
+      <div className="border-t border-gray-100 pt-5">
+        <p className="text-xs text-gray-400 mb-4">
+          逐层设定（预设选择或自定义输入）
+        </p>
+      </div>
+
+      <ToggleInput
         label="概括"
-        required
         value={draft.anchor.essence}
-        onChange={(e) => updateField("anchor.essence", e.target.value)}
-        placeholder="一句话概括——「傲娇学妹」「陨落的英雄」*"
+        onChange={(v) => updateField("anchor.essence", v)}
+        options={layerPresets.anchor.essence}
+        placeholder="一句话概括角色 *"
+        type="textarea"
         rows={2}
       />
-      <Input
+
+      <ToggleInput
         label="描述"
         value={draft.anchor.summary || ""}
-        onChange={(e) => updateField("anchor.summary", e.target.value)}
-        placeholder="卡片上显示的描述，如「一个用愤怒掩饰悲伤的守护者」"
-        hint="显示在角色卡片正文区域"
+        onChange={(v) => updateField("anchor.summary", v)}
+        options={[]}
+        placeholder="卡片上显示的简短描述"
       />
 
       <div>
@@ -53,11 +101,24 @@ export default function AnchorEditor() {
           <Input
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) =>
-              e.key === "Enter" && (e.preventDefault(), addTag())
-            }
+            onKeyDown={handleTagKeyDown}
             placeholder="输入标签后按回车"
           />
+          {tagInput.trim() && (
+            <div className="flex items-center gap-2 mt-1 mb-2">
+              <span className="text-xs text-gray-400">预览：</span>
+              <span
+                className="px-2.5 py-1 text-xs font-medium rounded-full border"
+                style={{
+                  color: generateTagColor(tagInput.trim()),
+                  borderColor: generateTagColor(tagInput.trim()) + "40",
+                  backgroundColor: generateTagColor(tagInput.trim()) + "10",
+                }}
+              >
+                {tagInput.trim()}
+              </span>
+            </div>
+          )}
           <button
             onClick={addTag}
             className="px-4 py-2.5 text-sm bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex-shrink-0"
@@ -83,18 +144,20 @@ export default function AnchorEditor() {
         </div>
       </div>
 
-      <Input
+      <ToggleInput
         label="人生主题"
         value={draft.anchor.theme || ""}
-        onChange={(e) => updateField("anchor.theme", e.target.value)}
-        placeholder="「救赎」「成长」「反抗命运」"
+        onChange={(v) => updateField("anchor.theme", v)}
+        options={layerPresets.anchor.theme}
+        placeholder="「救赎」「成长」..."
       />
-
-      <Textarea
+      <ToggleInput
         label="核心信念"
         value={draft.anchor.core_belief || ""}
-        onChange={(e) => updateField("anchor.core_belief", e.target.value)}
+        onChange={(v) => updateField("anchor.core_belief", v)}
+        options={layerPresets.anchor.core_belief}
         placeholder="TA不可动摇地相信什么"
+        type="textarea"
         rows={2}
       />
     </div>

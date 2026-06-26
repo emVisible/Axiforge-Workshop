@@ -9,3 +9,5 @@ export { default as Skeleton } from './Skeleton';
 export { default as DraftIndicator } from './DraftIndicator';
 export { default as DraftRestoreDialog } from './DraftRestoreDialog';
 export { default as ImageUpload } from './ImageUpload';
+export { default as SearchSelect } from './SearchSelect';
+export { default as ToggleInput } from './ToggleInput';

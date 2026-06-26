@@ -8,11 +8,21 @@ export default function StoryList() {
   const deleteStory = useDeleteStory(characterId!);
 
   if (isLoading) return <p className="text-sm text-gray-400 py-4">加载中...</p>;
+
   if (!stories || stories.length === 0) {
     return (
-      <p className="text-sm text-gray-400 py-4">
-        暂无篇章，点击上方按钮开始书写角色故事
-      </p>
+      <div className="text-center py-10">
+        <div className="text-4xl mb-4">📖</div>
+        <p className="text-sm text-gray-400 mb-5">还没有书写任何篇章</p>
+        <Button
+          size="sm"
+          onClick={() => {
+            window.dispatchEvent(new CustomEvent("open-create-story"));
+          }}
+        >
+          + 写第一篇传记
+        </Button>
+      </div>
     );
   }
 

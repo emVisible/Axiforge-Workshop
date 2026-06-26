@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { useEditorStore, emptyCharacterData } from "@/stores";
 import { useCreateCharacter } from "@/hooks/useCharacters";
 import { CharacterEditor } from "@/components/characters";
-import { Button, ImageUpload } from "@/components/ui";
+import { Button } from "@/components/ui";
 import { draftManager, CREATE_DRAFT_ID } from "@/lib/draftManager";
 import DraftRestoreDialog from "@/components/ui/DraftRestoreDialog";
 
@@ -54,7 +54,7 @@ export default function CreateCharacterPage() {
 
   const handleSave = async () => {
     if (!draft?.anchor?.essence?.trim()) {
-      setError("请至少填写锚点中的「本质概括」");
+      setError("请至少填写锚点中的「概括」");
       return;
     }
     if (!draft?.anchor?.name?.trim()) {
@@ -71,7 +71,7 @@ export default function CreateCharacterPage() {
       });
       draftManager.remove(CREATE_DRAFT_ID);
       reset();
-      navigate("/my-characters");
+      navigate("/my-characters", { replace: true });
     } catch (err) {
       setError("保存失败");
       console.error(err);
@@ -86,27 +86,12 @@ export default function CreateCharacterPage() {
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-        <div className="flex items-center gap-6">
-          <ImageUpload value={imagePath} onChange={setImagePath} />
-          <div className="flex-1 space-y-3">
-            <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={isPublic}
-                onChange={(e) => setIsPublic(e.target.checked)}
-                className="rounded border-gray-300 text-blue-500 focus:ring-blue-500"
-              />
-              公开到角色大厅
-            </label>
-            <p className="text-xs text-gray-400">
-              上传角色立绘或头像（可选）· 名称和标签在编辑器「锚点」中设置
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
-        <CharacterEditor />
+        <CharacterEditor
+          imagePath={imagePath}
+          onImageChange={setImagePath}
+          isPublic={isPublic}
+          onPublicChange={setIsPublic}
+        />
       </div>
 
       <div className="flex items-center justify-end gap-3 bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
